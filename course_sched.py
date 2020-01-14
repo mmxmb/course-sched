@@ -131,6 +131,8 @@ class CourseSched:
         self.cur_day_to_intervals = collections.defaultdict(list)
 
     def _add_curricula(self, curricula: List[Curriculum]):
+        """ Creates mapping from curricula ids to corresponding curricula.
+        """
         self.curricula = {} # mapping from curriculum id to `Curriculum`
         for curriculum in curricula:
             self.curricula[curriculum._id] = curriculum
@@ -144,7 +146,6 @@ class CourseSched:
         for cur_id, cur in self.curricula.items():
             for c_id, c in cur.courses.items():
                 self.course_curricula[c_id].append(cur_id)
-
 
     def create_model_vars(self, curricula: List[Curriculum]):
         """ Initializes model variables and adds them to
@@ -192,32 +193,42 @@ class CourseSched:
             (A.duration == 0 AND B.duration == 0 AND C.duration == 0) 
             OR
             # course happens in the same interval in all curricula (conjunction B)
-            (A.interval == B.interval AND B.interval == C.interval)
+            (A.start == B.start AND A.end == B.end AND B.start == C.start AND B.end == C.end)
         """
         assert(self.model_vars) # check that model variables are initialized
         prefix = 'sync_across_cur'
-        for c_id, cur_ids in self.course_curricula():
+        for c_id, cur_ids in self.course_curricula.items():
             if len(cur_ids) > 1:
                 for d in range(self.n_days):
 
                     conjunction_a = []
+                    conjunction_a_bool = self.model.NewBoolVar(prefix + f'_a_bool_d{d}c{c_id}')
                     for cur_id in cur_ids:
                         duration = self.model_vars[cur_id, d, c_id].duration
                         bool_a = self.model.NewBoolVar(prefix + f'_a_cur{cur_id}d{d}c{c_id}')
                         self.model.Add(duration == 0).OnlyEnforceIf(bool_a)
                         conjunction_a.append(bool_a)
-                    self.model.AddBoolAnd(conjunction_a)
+                    self.model.AddBoolAnd(conjunction_a).OnlyEnforceIf(conjunction_a_bool)
 
                     conjunction_b = []
+                    conjunction_b_bool = self.model.NewBoolVar(prefix + f'_b_bool_d{d}c{c_id}')
                     for prev_cur_id, next_cur_id in zip(cur_ids[:-1], cur_ids[1:]):
-                        prev_interval = self.model_vars[prev_cur_id, d, c_id].interval
-                        next_interval = self.model_vars[next_cur_id, d, c_id].interval
-                        bool_b = self.model.NewBoolVar(prefix + f'_b_cur{cur_id}d{d}c{c_id}')
-                        self.model.Add(prev_interval == next_interval).OnlyEnforceIf(bool_b)
-                        conjunction_b.append(bool_b)
-                    self.model.AddBoolAnd(conjunction_b)
+                        
+                        prev_start = self.model_vars[prev_cur_id, d, c_id].start
+                        next_start = self.model_vars[next_cur_id, d, c_id].start
+                        bool_b_start = self.model.NewBoolVar(prefix + f'_b_start_cur{cur_id}d{d}c{c_id}')
+                        self.model.Add(prev_start == next_start).OnlyEnforceIf(bool_b_start)
+                        conjunction_b.append(bool_b_start)
 
-                    self.model.AddBoolOr([conjunction_a, conjunction_b])
+                        prev_end = self.model_vars[prev_cur_id, d, c_id].end
+                        next_end= self.model_vars[next_cur_id, d, c_id].end
+                        bool_b_end = self.model.NewBoolVar(prefix + f'_b_end_cur{cur_id}d{d}c{c_id}')
+                        self.model.Add(prev_end == next_end).OnlyEnforceIf(bool_b_end)
+                        conjunction_b.append(bool_b_end)
+
+                    self.model.AddBoolAnd(conjunction_b).OnlyEnforceIf(conjunction_b_bool)
+
+                    self.model.AddBoolOr([conjunction_a_bool, conjunction_b_bool])
 
 
     def add_course_len_constraints(self):
@@ -360,7 +371,7 @@ def main():
     c6 = Course(6, 6)
 
     courses0 = [c0, c1, c2, c3]
-    courses1 = [c4, c5, c6, c0, c1]
+    courses1 = [c4, c3, c2, c1]
 
     cur0 = Curriculum(0, courses0)
     cur1 = Curriculum(1, courses1)
@@ -371,6 +382,7 @@ def main():
     sched.add_no_overlap_constraints()
     sched.add_course_len_constraints()
     sched.add_lecture_len_constraints()
+    sched.add_sync_across_curricula_constraint()
     # sched.add_lecture_symmetry_constraints()
     # sched.add_unavailability_constraints(0, 1, [(3, 5)])
     # sched.add_unavailability_constraints(1, 1, [(3, 5)])
@@ -387,7 +399,7 @@ def main():
     # sched.add_unavailability_constraints(1, 1, [(2, 7)])
     # sched.add_unavailability_constraints(1, 2, [(2, 7)])
 
-    n_solutions = 99 
+    n_solutions = 99
 
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars, 
                                                    sched.curricula, 

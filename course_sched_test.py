@@ -2,6 +2,8 @@ import unittest
 from ortools.sat.python import cp_model
 from course_sched import CourseSched, Course, Curriculum, ModelVar, SolverCallbackUtil, COURSE_GRANULARITY
 
+N_SOL_PER_TEST = 999
+
 class TestSchedPeriodSumCallback(SolverCallbackUtil):
 
     def __init__(self, model_vars, curricula, n_days, n_periods, n_solutions, expected):
@@ -101,6 +103,32 @@ class TestSchedLectureLenCallback(SolverCallbackUtil):
             self.StopSearch()
         self._solution_count += 1
 
+class TestCurriculaSyncCallback(SolverCallbackUtil):
+
+    def __init__(self, model_vars, curricula, n_days, n_periods, n_solutions, course_curricula):
+        SolverCallbackUtil.__init__(self, model_vars, curricula, n_days, n_periods, n_solutions)
+        self.course_curricula = course_curricula
+        self.success = True
+        self.msg = ""
+
+    def on_solution_callback(self):
+        if self._solution_count in self._solutions:
+            for d in range(self._n_days):
+                for c_id, cur_ids in self.course_curricula.items():
+                    starts, ends = [], []
+                    for cur_id in cur_ids:
+                        start = self.Value(self._model_vars[cur_id, d, c_id].start)
+                        end = self.Value(self._model_vars[cur_id, d, c_id].end)
+                        starts.append(start)
+                        ends.append(end)
+                    if len(set(starts)) > 1 or len(set(ends)) > 1:
+                        self.msg = f"Courses shared across curricula are not in sync"
+                        self.success = False
+                        self.StopSearch()
+        else:
+            self.StopSearch()
+        self._solution_count += 1
+
 class TestCourseSched(unittest.TestCase):
 
     def test_sched_periods_sum(self):
@@ -129,18 +157,20 @@ class TestCourseSched(unittest.TestCase):
             for c_id, c in cur.courses.items():
                 expected[cur_id][c_id] = c.n_periods
 
-        n_solutions = 999 
         test_callback = TestSchedPeriodSumCallback(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
-                                                   n_solutions,
+                                                   N_SOL_PER_TEST,
                                                    expected)
 
         solver = sched.solve(test_callback)
         self.assertEqual(test_callback.actual, test_callback.expected)
 
     def test_unavailability_constraints(self):
+        """ Intervals marked as unavailable for particular courses
+            must not be taken by those courses.
+        """
         c0, c1, c2, c3 = Course(0, 6), Course(1, 4), Course(2, 6), Course(3, 6)
         courses = [c0, c1, c2, c3]
         cur = Curriculum(0, courses)
@@ -163,18 +193,19 @@ class TestCourseSched(unittest.TestCase):
         sched.add_unavailability_constraints(1, 1, [(2, 9)])
         sched.add_unavailability_constraints(1, 2, [(2, 9)])
 
-        n_solutions = 999 
         test_callback = TestSchedUnavailabilityConstraintsCallback(sched.model_vars,
                                                                    sched.curricula,
                                                                    sched.n_days,
                                                                    sched.n_periods,
-                                                                   n_solutions)
+                                                                   N_SOL_PER_TEST)
 
         solver = sched.solve(test_callback)
         test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
         self.assertTrue(test_callback.success, msg=test_msg)
 
     def test_lecture_len_constraint(self):
+        """ Lecture lengths must be 2, 3 or 6.
+        """
         c0, c1, c2, c3 = Course(0, 6), Course(1, 6), Course(2, 4), Course(3, 6)
         c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
         courses0 = [c0, c1, c2, c3]
@@ -191,12 +222,45 @@ class TestCourseSched(unittest.TestCase):
         sched.add_course_len_constraints()
         sched.add_lecture_len_constraints()
 
-        n_solutions = 999 
         test_callback = TestSchedLectureLenCallback(sched.model_vars,
                                                     sched.curricula,
                                                     sched.n_days,
                                                     sched.n_periods,
-                                                    n_solutions)
+                                                    N_SOL_PER_TEST)
+
+        solver = sched.solve(test_callback)
+        test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
+        self.assertTrue(test_callback.success, msg=test_msg)
+
+    def test_curricula_sync(self):
+        """ Courses shared across different curricula must happen at the same time.
+        """
+        c0, c1, c2, c3 = Course(0, 6), Course(1, 6), Course(2, 4), Course(3, 6)
+        c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
+        c8, c9, c10, c11 = Course(8, 6), Course(9, 4), Course(10, 6), Course(11, 4)
+        courses0 = [c0, c1, c2, c3, c11]
+        courses1 = [c4, c5, c6, c7, c0, c1, c9]
+        courses2 = [c0, c5, c6, c3, c10, c8]
+        cur0 = Curriculum(0, courses0)
+        cur1 = Curriculum(1, courses1)
+        cur2 = Curriculum(2, courses2)
+        curricula = [cur0, cur1, cur2]
+        n_days = 5
+        n_periods = 10
+
+        sched = CourseSched(n_days, n_periods)
+        sched.create_model_vars(curricula)
+        sched.add_no_overlap_constraints()
+        sched.add_course_len_constraints()
+        sched.add_lecture_len_constraints()
+        sched.add_sync_across_curricula_constraint()
+
+        test_callback = TestCurriculaSyncCallback(sched.model_vars,
+                                                  sched.curricula,
+                                                  sched.n_days,
+                                                  sched.n_periods,
+                                                  N_SOL_PER_TEST,
+                                                  sched.course_curricula)
 
         solver = sched.solve(test_callback)
         test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
