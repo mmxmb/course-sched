@@ -2,11 +2,12 @@ from ortools.sat.python import cp_model
 import collections
 from typing import List, Tuple, NewType, Dict
 from dataclasses import dataclass
+from functools import lru_cache
 
 Interval = NewType('Interval', Tuple[int, int])
 
 @dataclass
-class CourseVar:
+class ModelVar:
     start: cp_model.IntVar
     end: cp_model.IntVar
     interval: cp_model.IntervalVar
@@ -19,10 +20,10 @@ class InvalidNumPeriods(Exception):
 
 class Course:
 
-    def __init__(self, _id, n_periods): # TODO: , curricula):
+    def __init__(self, _id, n_periods):
         self._id = _id
         self.n_periods = n_periods
-        #self.curricula = curricula # list of curriculum ids
+        self.curricula = {}
         if n_periods == 6:
             self.max_lecture_len = 6
         elif n_periods == 4:
@@ -31,15 +32,28 @@ class Course:
             raise InvalidNumPeriods
 
 
+class Curriculum:
+
+    def __init__(self, _id: int, courses: List[Course]):
+        self._id = _id
+        self._add_courses(courses)
+
+
+    def _add_courses(self, courses: List[Course]):
+        self.courses = {} # mapping from course id to `Course`
+        for course in courses:
+            self.courses[course._id] = course
+
+
 class SolverCallbackUtil(cp_model.CpSolverSolutionCallback):
     """ Solver callback containing methods that are useful for other callbacks.
     """
 
-    def __init__(self, course_vars: Dict[Tuple[int, int], CourseVar], courses: Dict[int, Course], 
+    def __init__(self, model_vars: Dict[Tuple[int, int], ModelVar], curricula: List[Curriculum], 
                  n_days: int, n_periods: int, n_solutions: int):
         cp_model.CpSolverSolutionCallback.__init__(self)
-        self._course_vars = course_vars
-        self._courses = courses
+        self._model_vars = model_vars
+        self._curricula = curricula 
         self._n_days = n_days
         self._n_periods = n_periods
         self._solutions = set(range(n_solutions))
@@ -48,18 +62,20 @@ class SolverCallbackUtil(cp_model.CpSolverSolutionCallback):
     def sol_to_str(self):
         out = ["\n"]
         for d in range(self._n_days):
-            period_strs = [None] * self._n_periods
             out.append(f"Day {d}")
-            for c_id in self._courses.keys():
-                start = self.Value(self._course_vars[c_id, d].start)
-                end = self.Value(self._course_vars[c_id, d].end)
-                for idx in range(start, end):
-                    assert(not period_strs[idx])
-                    period_strs[idx] = f"Period {idx}: course {c_id}"
-            for idx in range(self._n_periods):
-                if not period_strs[idx]:
-                    period_strs[idx] = f"Period {idx}: no course"
-                out.append(period_strs[idx])
+            for cur_id, cur in self._curricula.items():
+                out.append(f"Curriculum {cur_id}")
+                period_strs = [None] * self._n_periods
+                for c_id in cur.courses.keys():
+                    start = self.Value(self._model_vars[cur_id, d, c_id].start)
+                    end = self.Value(self._model_vars[cur_id, d, c_id].end)
+                    for idx in range(start, end):
+                        assert(not period_strs[idx])
+                        period_strs[idx] = f"Period {idx}: course {c_id}"
+                for idx in range(self._n_periods):
+                    if not period_strs[idx]:
+                        period_strs[idx] = f"Period {idx}: no course"
+                    out.append(period_strs[idx])
         return "\n".join(out)
 
     def solution_count(self):
@@ -67,17 +83,26 @@ class SolverCallbackUtil(cp_model.CpSolverSolutionCallback):
 
 class SchedPartialSolutionPrinter(SolverCallbackUtil):
 
-    def __init__(self, course_vars: Dict[Tuple[int, int], CourseVar], courses: Dict[int, Course], 
-                 n_days: int, n_periods: int, n_solutions: int):
-        SolverCallbackUtil.__init__(self, course_vars, courses, n_days, n_periods, n_solutions)
+    def __init__(self, model_vars: Dict[Tuple[int, int], ModelVar], 
+            curricula: Dict[int, Curriculum], n_days: int, n_periods: int, n_solutions: int):
+        SolverCallbackUtil.__init__(self, model_vars, curricula, n_days, n_periods, n_solutions)
 
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
-            print(f'Solution {self._solution_count}')
             print(self.sol_to_str())
+            # if self.test():
+                # print(f'Solution {self._solution_count}')
+                # print(self.sol_to_str())
         else:
             self.StopSearch()
         self._solution_count += 1
+
+    def test(self):
+        for c_id in self._courses.keys():
+            for d in (1, 3):
+                duration = self.Value(self._model_vars[c_id, d].duration)
+                if duration:
+                    return True
 
 COURSE_GRANULARITY = [2, 3, 6]           # possible course lenghts in periods
 MIN_COURSE_LEN = min(COURSE_GRANULARITY) # minimum course length in periods
@@ -91,7 +116,7 @@ class CourseSched:
             `n_days`: number of days per week
             `n_periods`: number of periods per day (1 period is a 30-min block)
             `model`: CP-SAT model
-            `course_vars`: mapping from (`course_id`, `day`) tuple to `CourseVar` which contains:
+            `model_vars`: mapping from (`course_id`, `day`) tuple to `ModelVar` which contains:
                               * `start` model integer variable (IntVar)
                               * `end` model integer variable (IntVar)
                               * `duration` model integer variable (IntVar)
@@ -102,66 +127,126 @@ class CourseSched:
         self.n_days = n_days             # num of days per week
         self.n_periods = n_periods       # num 30-min periods per day
         self.model = cp_model.CpModel()
-        self.course_vars = {}           
-        self.day_to_intervals = collections.defaultdict(list)
+        self.model_vars = {}           
+        self.cur_day_to_intervals = collections.defaultdict(list)
 
-    def _add_courses(self, courses: List[Course]):
-        self.courses = {} # mapping from course id to `Course`
-        for course in courses:
-            self.courses[course._id] = course
+    def _add_curricula(self, curricula: List[Curriculum]):
+        self.curricula = {} # mapping from curriculum id to `Curriculum`
+        for curriculum in curricula:
+            self.curricula[curriculum._id] = curriculum
+        self._init_course_curricula()
 
-    def create_course_vars(self, courses: List[Course]):
+    def _init_course_curricula(self):
+        """ Creates mapping from course id to list of curriculum ids.
+            Course is part of those curricula.
+        """
+        self.course_curricula = collections.defaultdict(list)
+        for cur_id, cur in self.curricula.items():
+            for c_id, c in cur.courses.items():
+                self.course_curricula[c_id].append(cur_id)
+
+
+    def create_model_vars(self, curricula: List[Curriculum]):
         """ Initializes model variables and adds them to
-            `course_vars` and `day_to_intervals`.
+            `model_vars` and `day_to_intervals`.
 
             This method has to be called before any constraint is added to the model.
         """
-        self._add_courses(courses)
+        self._add_curricula(curricula)
         for d in range(self.n_days):
-            for c_id, c in self.courses.items():
-                suffix =  f'_c{c_id}d{d}'
-                start_var = self.model.NewIntVar(0, self.n_periods - MIN_COURSE_LEN, 'start' + suffix)
-                end_var = self.model.NewIntVar(0, self.n_periods, 'end' + suffix)
-                duration_var = self.model.NewIntVar(0, c.max_lecture_len, 'duration' + suffix)
-                interval_var = self.model.NewIntervalVar(start_var, duration_var,
-                                                         end_var, 'interval' + suffix)
-                # TODO add curricula
-                self.course_vars[c_id, d] = CourseVar(start=start_var, 
-                                                      end=end_var, 
-                                                      interval=interval_var,
-                                                      duration=duration_var)
-                self.day_to_intervals[d].append(interval_var)
+            for cur_id, cur in self.curricula.items():
+                for c_id, c in cur.courses.items():
+                    suffix =  f'_cur{cur_id}d{d}c{c_id}'
+                    start_var = self.model.NewIntVar(0, self.n_periods - MIN_COURSE_LEN,
+                                                     'start' + suffix)
+                    end_var = self.model.NewIntVar(0, self.n_periods,
+                                                   'end' + suffix)
+                    duration_var = self.model.NewIntVar(0, c.max_lecture_len,
+                                                        'duration' + suffix)
+                    interval_var = self.model.NewIntervalVar(start_var, duration_var,
+                                                             end_var, 'interval' + suffix)
+                    self.model_vars[cur_id, d, c_id] = ModelVar(start=start_var, 
+                                                                end=end_var, 
+                                                                interval=interval_var,
+                                                                duration=duration_var)
+                    self.cur_day_to_intervals[cur_id, d].append(interval_var)
 
     
     def add_no_overlap_constraints(self):
         """ Ensures that courses on the same day do not overlap.
         """
-        assert(self.day_to_intervals) # check that model variables are initialized
+        assert(self.cur_day_to_intervals) # check that model variables are initialized
         for d in range(self.n_days):
-            self.model.AddNoOverlap(self.day_to_intervals[d])
+            for cur_id in self.curricula.keys():
+                self.model.AddNoOverlap(self.cur_day_to_intervals[cur_id, d])
+
+    def add_sync_across_curricula_constraint(self):
+        """ Ensures that courses shared across multiple curricula happen at the same time.
+
+            E.g. a course is shared across multiple curricula; that is there
+            are copies of interval variable for the same course in different.
+            Let's say those interval variables are A, B and C (course is shared across
+            3 curricula). The following must be true for each day of the week:
+
+            # course doesn't happen on this day (conjunction A)
+            (A.duration == 0 AND B.duration == 0 AND C.duration == 0) 
+            OR
+            # course happens in the same interval in all curricula (conjunction B)
+            (A.interval == B.interval AND B.interval == C.interval)
+        """
+        assert(self.model_vars) # check that model variables are initialized
+        prefix = 'sync_across_cur'
+        for c_id, cur_ids in self.course_curricula():
+            if len(cur_ids) > 1:
+                for d in range(self.n_days):
+
+                    conjunction_a = []
+                    for cur_id in cur_ids:
+                        duration = self.model_vars[cur_id, d, c_id].duration
+                        bool_a = self.model.NewBoolVar(prefix + f'_a_cur{cur_id}d{d}c{c_id}')
+                        self.model.Add(duration == 0).OnlyEnforceIf(bool_a)
+                        conjunction_a.append(bool_a)
+                    self.model.AddBoolAnd(conjunction_a)
+
+                    conjunction_b = []
+                    for prev_cur_id, next_cur_id in zip(cur_ids[:-1], cur_ids[1:]):
+                        prev_interval = self.model_vars[prev_cur_id, d, c_id].interval
+                        next_interval = self.model_vars[next_cur_id, d, c_id].interval
+                        bool_b = self.model.NewBoolVar(prefix + f'_b_cur{cur_id}d{d}c{c_id}')
+                        self.model.Add(prev_interval == next_interval).OnlyEnforceIf(bool_b)
+                        conjunction_b.append(bool_b)
+                    self.model.AddBoolAnd(conjunction_b)
+
+                    self.model.AddBoolOr([conjunction_a, conjunction_b])
+
 
     def add_course_len_constraints(self):
         """ Ensures that each course happens exactly `course.n_periods` periods per week.
         """
-        assert(self.course_vars) # check that model variables are initialized
-        for c_id, c in self.courses.items():
-            self.model.Add(sum(self.course_vars[c_id, d].duration for d in range(self.n_days)) == c.n_periods)
+        assert(self.model_vars) # check that model variables are initialized
+        for cur_id, cur in self.curricula.items():
+            for c_id, c in cur.courses.items():
+                self.model.Add(sum(self.model_vars[cur_id, d, c_id].duration for d in \
+                                   range(self.n_days)) == c.n_periods)
 
     def add_unavailability_constraints(self, c_id: int, day: int, intervals: List[Interval]):
         """ Marks certain `intervals` of a particular `day` unavailable for scheduling for a
             particular course (identified by `c_id`).
         """
-        assert(self.course_vars) # check that model variables are initialized
-        assert(c_id in self.courses) # check that course id exists
+        assert(self.model_vars) # check that model variables are initialized
+        assert(c_id in self.course_curricula) # check that course id exists
         interval_vars = []
         for interval in intervals:
             assert(len(interval) == 2)
             start, end = interval
-            suffix = f'_c{c_id}d{day}interval-{start}_{end}'
+            suffix = f'_d{day}c{c_id}interval-{start}_{end}'
             interval_var = self.model.NewIntervalVar(start, end - start, 
                                                      end, 'unavail_interval' + suffix)
             interval_vars.append(interval_var)
-        interval_vars.append(self.course_vars[c_id, day].interval)
+
+        for cur_id in self.course_curricula[c_id]:
+            interval_vars.append(self.model_vars[cur_id, day, c_id].interval)
+
         self.model.AddNoOverlap(interval_vars)
 
 
@@ -170,37 +255,74 @@ class CourseSched:
               * If a course has 6 periods per week, it can take up 2, 3, 6 periods.
               * If a course has 4 periods per week, it can take up 2 periods only.
         """
-        assert(self.course_vars) # check that model variables are initialized
-        for d in range(self.n_days):
-            for c_id, c in self.courses.items():
-                lecture_constraint_disjunction = []
-                
-                # Case when course doesn't take place on this day at all
-                no_periods = self.model.NewBoolVar(f'no_periods_c{c_id}d{d}')
-                self.model.Add(self.course_vars[c_id, d].duration == 0).OnlyEnforceIf(no_periods)
-                lecture_constraint_disjunction.append(no_periods)
+        assert(self.model_vars) # check that model variables are initialized
+        for cur_id, cur in self.curricula.items():
+            for d in range(self.n_days):
+                for c_id, c in cur.courses.items():
 
-                two_periods = self.model.NewBoolVar(f'two_periods_c{c_id}d{d}')
-                self.model.Add(self.course_vars[c_id, d].duration == 2).OnlyEnforceIf(two_periods)
-                lecture_constraint_disjunction.append(two_periods)
+                    lecture_constraint_disjunction = []
+                    
+                    # Case when course doesn't take place on this day at all
+                    no_periods = self.model.NewBoolVar(f'0_periods_cur{cur_id}d{d}c{c_id}')
+                    duration = self.model_vars[cur_id, d, c_id].duration
+                    self.model.Add(duration == 0).OnlyEnforceIf(no_periods)
+                    lecture_constraint_disjunction.append(no_periods)
 
-                if c.max_lecture_len == 6:
-                    three_periods = self.model.NewBoolVar(f'three_periods_c{c_id}d{d}')
-                    self.model.Add(self.course_vars[c_id, d].duration == 3).OnlyEnforceIf(three_periods)
-                    lecture_constraint_disjunction.append(three_periods)
+                    two_periods = self.model.NewBoolVar(f'2_periods_cur{cur_id}d{d}c{c_id}')
+                    self.model.Add(duration == 2).OnlyEnforceIf(two_periods)
+                    lecture_constraint_disjunction.append(two_periods)
 
-                    six_periods = self.model.NewBoolVar(f'six_periods_c{c_id}d{d}')
-                    self.model.Add(self.course_vars[c_id, d].duration == 6).OnlyEnforceIf(six_periods)
-                    lecture_constraint_disjunction.append(six_periods)
+                    if c.max_lecture_len == 6:
+                        three_periods = self.model.NewBoolVar(f'3_periods_cur{cur_id}d{d}c{c_id}')
+                        self.model.Add(duration == 3).OnlyEnforceIf(three_periods)
+                        lecture_constraint_disjunction.append(three_periods)
 
-                self.model.AddBoolOr(lecture_constraint_disjunction)
+                        six_periods = self.model.NewBoolVar(f'6_periods_cur{cur_id}d{d}c{c_id}')
+                        self.model.Add(duration == 6).OnlyEnforceIf(six_periods)
+                        lecture_constraint_disjunction.append(six_periods)
+
+                    self.model.AddBoolOr(lecture_constraint_disjunction)
+
+    def add_lecture_symmetry_constraints(self):
+        """ Ensures that lectures for a course a scheduled "symmetrically".
+            I.e. a lecture scheduled for 1PM on Monday has to be also scheduled
+            for 1PM on Wednesday and Friday.
+        """
+        assert(self.model_vars) # check that model variables are initialized
+        assert(self.n_days == 5)
+        for c_id, c in self.courses.items():
+            # Courses scheduled for Tuesday and Thursday
+            no_course_tue = self.model.NewBoolVar(f'no_course_tue_c{c_id}')
+            self.model.Add(self.model_vars[c_id, 1].duration == 0).OnlyEnforceIf(no_course_tue)
+            no_course_thu = self.model.NewBoolVar(f'no_course_thu_c{c_id}')
+            self.model.Add(self.model_vars[c_id, 3].duration == 0).OnlyEnforceIf(no_course_thu)
+            no_course_tue_thu = self.model.NewBoolVar(f'no_course_tue_thu_c{c_id}')
+            self.model.AddBoolAnd([no_course_tue, no_course_thu]).OnlyEnforceIf(no_course_tue_thu)
+
+
+            course_tue_only = self.model.NewBoolVar(f'course_tue_only_c{c_id}')
+            self.model.Add(self.model_vars[c_id, 1].duration == 6).OnlyEnforceIf(course_tue_only)
+
+            course_thu_only = self.model.NewBoolVar(f'course_thu_only_c{c_id}')
+            self.model.Add(self.model_vars[c_id, 3].duration == 6).OnlyEnforceIf(course_thu_only)
+
+            # course_tue_thu = self.model.NewBoolVar(f'course_tue_thu_c{c_id}')
+            # self.model.Add(self.model_vars[c_id, 1].interval == \
+                           # self.model_vars[c_id, 3].interval).OnlyEnforceIf(course_tue_thu)
+
+            self.model.AddBoolXOr([no_course_tue_thu, 
+                                   course_tue_only,
+                                   course_thu_only])
+                                   # course_tue_thu])
+
+
 
     def solve(self, callback: cp_model.CpSolverSolutionCallback, max_time: int=None):
         """ Create CP model solver and search for solutions for the model.
             `callback`: a class implementing `cp_model.CpSolverSolutionCallback`
             `max_time`: solution search timeout in seconds
         """
-        assert(self.course_vars) # check that model variables are initialized
+        assert(self.model_vars) # check that model variables are initialized
         self.solver = cp_model.CpSolver()
         if max_time:
             self.solver.parameters.max_time_in_seconds = max_time
@@ -226,30 +348,49 @@ def main():
     # classes operating over certain times
 
     n_periods = 8 # 26 8:30 = 0 -> 21:30 = 2 
-    n_days = 3 
+    n_days = 5 
 
     c0 = Course(0, 6)
     c1 = Course(1, 4)
     c2 = Course(2, 6)
     c3 = Course(3, 6)
 
-    courses = [c0, c1, c2, c3]
+    c4 = Course(4, 6)
+    c5 = Course(5, 6)
+    c6 = Course(6, 6)
+
+    courses0 = [c0, c1, c2, c3]
+    courses1 = [c4, c5, c6, c0, c1]
+
+    cur0 = Curriculum(0, courses0)
+    cur1 = Curriculum(1, courses1)
+    curricula = [cur0, cur1]
 
     sched = CourseSched(n_days, n_periods)
-    sched.create_course_vars(courses)
+    sched.create_model_vars(curricula)
     sched.add_no_overlap_constraints()
     sched.add_course_len_constraints()
-    sched.add_unavailability_constraints(3, 0, [(0, 7)])
-    sched.add_unavailability_constraints(3, 1, [(0, 7)])
-    sched.add_unavailability_constraints(1, 0, [(0, 7)])
-    sched.add_unavailability_constraints(1, 1, [(2, 7)])
-    sched.add_unavailability_constraints(1, 2, [(2, 7)])
     sched.add_lecture_len_constraints()
+    # sched.add_lecture_symmetry_constraints()
+    # sched.add_unavailability_constraints(0, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(1, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(2, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(3, 1, [(3, 5)])
 
-    n_solutions = 100
+    # sched.add_unavailability_constraints(0, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(1, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(2, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(3, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(3, 0, [(0, 7)])
+    # sched.add_unavailability_constraints(3, 1, [(0, 7)])
+    # sched.add_unavailability_constraints(1, 0, [(0, 7)])
+    # sched.add_unavailability_constraints(1, 1, [(2, 7)])
+    # sched.add_unavailability_constraints(1, 2, [(2, 7)])
 
-    solution_printer = SchedPartialSolutionPrinter(sched.course_vars, 
-                                                   sched.courses, 
+    n_solutions = 99 
+
+    solution_printer = SchedPartialSolutionPrinter(sched.model_vars, 
+                                                   sched.curricula, 
                                                    sched.n_days, 
                                                    sched.n_periods,
                                                    n_solutions)

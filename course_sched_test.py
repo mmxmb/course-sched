@@ -1,22 +1,24 @@
 import unittest
 from ortools.sat.python import cp_model
-from course_sched import CourseSched, Course, CourseVar, SolverCallbackUtil, COURSE_GRANULARITY
+from course_sched import CourseSched, Course, Curriculum, ModelVar, SolverCallbackUtil, COURSE_GRANULARITY
 
 class TestSchedPeriodSumCallback(SolverCallbackUtil):
 
-    def __init__(self, course_vars, courses, n_days, n_periods, n_solutions, expected):
-        SolverCallbackUtil.__init__(self, course_vars, courses, n_days, n_periods, n_solutions)
+    def __init__(self, model_vars, curricula, n_days, n_periods, n_solutions, expected):
+        SolverCallbackUtil.__init__(self, model_vars, curricula, n_days, n_periods, n_solutions)
         self.expected = expected
         self.actual = None
 
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
             self.actual = {} 
-            for c_id in self._courses.keys():
-                self.actual[c_id] = 0
-                for d in range(self._n_days):
-                    duration = self.Value(self._course_vars[c_id, d].duration)
-                    self.actual[c_id] += duration
+            for cur_id, cur in self._curricula.items():
+                self.actual[cur_id] = {}
+                for c_id in cur.courses.keys():
+                    self.actual[cur_id][c_id] = 0
+                    for d in range(self._n_days):
+                        duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                        self.actual[cur_id][c_id] += duration
             if self.actual != self.expected:
                 self.StopSearch()
         else:
@@ -26,56 +28,53 @@ class TestSchedPeriodSumCallback(SolverCallbackUtil):
 
 class TestSchedUnavailabilityConstraintsCallback(SolverCallbackUtil):
 
-    def __init__(self, course_vars, courses, n_days, n_periods, n_solutions):
-        SolverCallbackUtil.__init__(self, course_vars, courses, n_days, n_periods, n_solutions)
+    def __init__(self, model_vars, curricula, n_days, n_periods, n_solutions):
+        SolverCallbackUtil.__init__(self, model_vars, curricula, n_days, n_periods, n_solutions)
         self.success = True
         self.msg = ""
 
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
             actual = {} 
-            for c_id in self._courses.keys():
-                for d in range(self._n_days):
+            for cur_id, cur in self._curricula.items():
+                for c_id in cur.courses.keys():
+                    for d in range(self._n_days):
 
-                    # course 3 can only happen on day 2
-                    if c_id == 3:
-                        if d == 2:
-                            duration = self.Value(self._course_vars[c_id, d].duration)
-                            if duration == 0:
-                                self.msg = "Course 3 has to take place on day 2"
-                                self.success = False
-                                self.StopSearch()
-                        else:
-                            duration = self.Value(self._course_vars[c_id, d].duration)
-                            if duration != 0:
-                                self.msg = "Course 3 cannot take place on day 2"
-                                self.success = False
-                                self.StopSearch()
+                        # course 3 can only happen on day 2
+                        if c_id == 3:
+                            if d == 2:
+                                duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                                if duration == 0:
+                                    self.msg = "Course 3 has to take place on day 2"
+                                    self.success = False
+                                    self.StopSearch()
+                            else:
+                                duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                                if duration != 0:
+                                    self.msg = "Course 3 cannot take place on day 2"
+                                    self.success = False
+                                    self.StopSearch()
 
-                    # course 1 can only happen in the first two periods of days 1 and 2
-                    elif c_id == 1:
-                        if d == 1:
-                            duration = self.Value(self._course_vars[c_id, d].duration)
-                            start = self.Value(self._course_vars[c_id, d].start)
-                            end = self.Value(self._course_vars[c_id, d].end)
-                            if duration == 0 or start != 0 or end != 2:
-                                self.msg = "Course 1 has to take place during periods 1 and 2 of day 1"
-                                self.success = False
-                                self.StopSearch()
-                        elif d == 2:
-                            duration = self.Value(self._course_vars[c_id, d].duration)
-                            start = self.Value(self._course_vars[c_id, d].start)
-                            end = self.Value(self._course_vars[c_id, d].end)
-                            if duration == 0 or start != 0 or end != 2:
-                                self.msg = "Course 1 has to take place during periods 1 and 2 of day 2"
-                                self.success = False
-                                self.StopSearch()
-                        else:
-                            duration = self.Value(self._course_vars[c_id, d].duration)
-                            if duration != 0:
-                                self.msg = "Course 1 cannot take place on days other than 1 and 2"
-                                self.success = False
-                                self.StopSearch()
+                        # course 1 can only happen in the first two periods of days 1 and 2
+                        elif c_id == 1:
+                            duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                            start = self.Value(self._model_vars[cur_id, d, c_id].start)
+                            end = self.Value(self._model_vars[cur_id, d, c_id].end)
+                            if d == 1:
+                                if duration == 0 or start != 0 or end != 2:
+                                    self.msg = "Course 1 has to take place during periods 1 and 2 of day 1"
+                                    self.success = False
+                                    self.StopSearch()
+                            elif d == 2:
+                                if duration == 0 or start != 0 or end != 2:
+                                    self.msg = "Course 1 has to take place during periods 1 and 2 of day 2"
+                                    self.success = False
+                                    self.StopSearch()
+                            else:
+                                if duration != 0:
+                                    self.msg = "Course 1 cannot take place on days other than 1 and 2"
+                                    self.success = False
+                                    self.StopSearch()
         else:
             self.StopSearch()
         self._solution_count += 1
@@ -83,20 +82,21 @@ class TestSchedUnavailabilityConstraintsCallback(SolverCallbackUtil):
 
 class TestSchedLectureLenCallback(SolverCallbackUtil):
 
-    def __init__(self, course_vars, courses, n_days, n_periods, n_solutions):
-        SolverCallbackUtil.__init__(self, course_vars, courses, n_days, n_periods, n_solutions)
+    def __init__(self, model_vars, curricula, n_days, n_periods, n_solutions):
+        SolverCallbackUtil.__init__(self, model_vars, curricula, n_days, n_periods, n_solutions)
         self.success = True
         self.msg = ""
 
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
-            for c_id in self._courses.keys():
+            for cur_id, cur in self._curricula.items():
                 for d in range(self._n_days):
-                    duration = self.Value(self._course_vars[c_id, d].duration)
-                    if duration and duration not in COURSE_GRANULARITY:
-                        self.msg = f"Detected lecture with len {duration}"
-                        self.success = False
-                        self.StopSearch()
+                    for c_id in cur.courses.keys():
+                        duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                        if duration and duration not in COURSE_GRANULARITY:
+                            self.msg = f"Detected lecture with len {duration}"
+                            self.success = False
+                            self.StopSearch()
         else:
             self.StopSearch()
         self._solution_count += 1
@@ -108,23 +108,30 @@ class TestCourseSched(unittest.TestCase):
             must be equal to the `n_periods` for the corresponding `Course`.
         """
         c0, c1, c2, c3 = Course(0, 6), Course(1, 6), Course(2, 4), Course(3, 6)
-        courses = [c0, c1, c2, c3]
+        c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
+        courses0 = [c0, c1, c2, c3]
+        courses1 = [c4, c5, c6, c7]
+        cur0 = Curriculum(0, courses0)
+        cur1 = Curriculum(1, courses1)
+        curricula = [cur0, cur1]
         n_days = 3
         n_periods = 8
 
         sched = CourseSched(n_days, n_periods)
-        sched.create_course_vars(courses)
+        sched.create_model_vars(curricula)
         sched.add_no_overlap_constraints()
         sched.add_course_len_constraints()
         sched.add_lecture_len_constraints()
 
         expected = {}
-        for c_id, c in sched.courses.items():
-            expected[c_id] = c.n_periods
+        for cur_id, cur in sched.curricula.items():
+            expected[cur_id] = {}
+            for c_id, c in cur.courses.items():
+                expected[cur_id][c_id] = c.n_periods
 
         n_solutions = 999 
-        test_callback = TestSchedPeriodSumCallback(sched.course_vars,
-                                                   sched.courses,
+        test_callback = TestSchedPeriodSumCallback(sched.model_vars,
+                                                   sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions,
@@ -136,11 +143,13 @@ class TestCourseSched(unittest.TestCase):
     def test_unavailability_constraints(self):
         c0, c1, c2, c3 = Course(0, 6), Course(1, 4), Course(2, 6), Course(3, 6)
         courses = [c0, c1, c2, c3]
+        cur = Curriculum(0, courses)
+        curricula = [cur]
         n_days = 3
         n_periods = 10
 
         sched = CourseSched(n_days, n_periods)
-        sched.create_course_vars(courses)
+        sched.create_model_vars(curricula)
         sched.add_no_overlap_constraints()
         sched.add_course_len_constraints()
         sched.add_lecture_len_constraints()
@@ -155,8 +164,8 @@ class TestCourseSched(unittest.TestCase):
         sched.add_unavailability_constraints(1, 2, [(2, 9)])
 
         n_solutions = 999 
-        test_callback = TestSchedUnavailabilityConstraintsCallback(sched.course_vars,
-                                                                   sched.courses,
+        test_callback = TestSchedUnavailabilityConstraintsCallback(sched.model_vars,
+                                                                   sched.curricula,
                                                                    sched.n_days,
                                                                    sched.n_periods,
                                                                    n_solutions)
@@ -166,20 +175,25 @@ class TestCourseSched(unittest.TestCase):
         self.assertTrue(test_callback.success, msg=test_msg)
 
     def test_lecture_len_constraint(self):
-        c0, c1, c2, c3 = Course(0, 6), Course(1, 4), Course(2, 6), Course(3, 6)
-        courses = [c0, c1, c2, c3]
+        c0, c1, c2, c3 = Course(0, 6), Course(1, 6), Course(2, 4), Course(3, 6)
+        c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
+        courses0 = [c0, c1, c2, c3]
+        courses1 = [c4, c5, c6, c7]
+        cur0 = Curriculum(0, courses0)
+        cur1 = Curriculum(1, courses1)
+        curricula = [cur0, cur1]
         n_days = 3
         n_periods = 10
 
         sched = CourseSched(n_days, n_periods)
-        sched.create_course_vars(courses)
+        sched.create_model_vars(curricula)
         sched.add_no_overlap_constraints()
         sched.add_course_len_constraints()
         sched.add_lecture_len_constraints()
 
         n_solutions = 999 
-        test_callback = TestSchedLectureLenCallback(sched.course_vars,
-                                                    sched.courses,
+        test_callback = TestSchedLectureLenCallback(sched.model_vars,
+                                                    sched.curricula,
                                                     sched.n_days,
                                                     sched.n_periods,
                                                     n_solutions)
