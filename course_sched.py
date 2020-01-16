@@ -306,56 +306,116 @@ class CourseSched:
             same time on Thursday. 
 
             For each course C, the following is true:
-
-            (C doesn't take place on Tue AND 
-             C doesn't take place on Thu)
-            XOR
-            C takes place on Tue only (3 hour lecture)
-            XOR
-            C takes place on Thu only (3 hour lecture)
-            XOR
-            (C starts at the same time on Tue as on Thu AND
-             C duration on Tue is the same as on Thu)
-
-
+            
+            C has one 3-hour lecture
+            XOR # conjunction A
+            (C lecture on Tue starts at the same time as lecture on Thu AND
+             C lecture duration on Tue is the same as on Thu AND
+             C lecture duration on Tue is not zero) (1 or 2 hour duration is possible)
+            XOR # conjunction B
+            (C lecture on Mon starts at the same time as on Wed AND
+             C lecture duration on Mon is the same as on Wed AND
+             C lecture on Wed starts at the same time as on Fri AND
+             C lecture duration on Wed is the same as on Fri AND
+             C lecture duration on Mon is not zero) (only 1 hour duration possible here)
+            XOR # conjunction C
+            (C lecture on Mon starts at the same time as lecture on Wed AND
+             C lecture duration on Mon is the same as on Wed AND
+             C lecture duration on Fri is zero AND
+             C lecture duration on Mon is nonzero)
 
         """
+        # TODO: can courses with two lectures a week happen on Mon, Fri or Wed, Fri
+
         assert(self.n_days == 5)
         for c_id, cur_ids in self.course_to_curricula.items():
             for cur_id in cur_ids:
 
-                # Courses scheduled for Tuesday and Thursday
+                mon_duration = self.model_vars[cur_id, 0, c_id].duration
                 tue_duration = self.model_vars[cur_id, 1, c_id].duration
+                wed_duration = self.model_vars[cur_id, 2, c_id].duration
                 thu_duration = self.model_vars[cur_id, 3, c_id].duration
-
-                no_course_tue = self.model.NewBoolVar(f'no_course_tue_cur{cur_id}c{c_id}')
-                self.model.Add(tue_duration == 0).OnlyEnforceIf(no_course_tue)
-                no_course_thu = self.model.NewBoolVar(f'no_course_thu_cur{cur_id}c{c_id}')
-                self.model.Add(thu_duration == 0).OnlyEnforceIf(no_course_thu)
-                no_course_tue_thu = self.model.NewBoolVar(f'no_course_tue_thu_cur{cur_id}c{c_id}')
-                self.model.AddBoolAnd([no_course_tue, 
-                                       no_course_thu]).OnlyEnforceIf(no_course_tue_thu)
-
-                course_tue_only = self.model.NewBoolVar(f'course_tue_only_cur{cur_id}c{c_id}')
-                self.model.Add(tue_duration == 6).OnlyEnforceIf(course_tue_only)
-
-                course_thu_only = self.model.NewBoolVar(f'course_thu_only_cur{cur_id}c{c_id}')
-                self.model.Add(thu_duration == 6).OnlyEnforceIf(course_thu_only)
-
-                course_tue_thu_conjunction = self.model.NewBoolVar(f'course_tue_thu_conj_cur{cur_id}c{c_id}')
-                course_tue_thu_start = self.model.NewBoolVar(f'course_tue_thu_start_cur{cur_id}c{c_id}')
+                fri_duration = self.model_vars[cur_id, 4, c_id].duration
+                mon_start = self.model_vars[cur_id, 0, c_id].start
                 tue_start = self.model_vars[cur_id, 1, c_id].start
+                wed_start = self.model_vars[cur_id, 2, c_id].start
                 thu_start = self.model_vars[cur_id, 3, c_id].start
-                self.model.Add(tue_start == thu_start).OnlyEnforceIf(course_tue_thu_start)
-                course_tue_thu_duration = self.model.NewBoolVar(f'course_tue_thu_duration_cur{cur_id}c{c_id}')
-                self.model.Add(tue_duration == thu_duration).OnlyEnforceIf(course_tue_thu_duration)
-                self.model.AddBoolAnd([course_tue_thu_start,
-                                       course_tue_thu_duration]).OnlyEnforceIf(course_tue_thu_conjunction)
+                fri_start = self.model_vars[cur_id, 4, c_id].start
 
-                self.model.AddBoolXOr([no_course_tue_thu, 
-                                       course_tue_only,
-                                       course_thu_only,
-                                       course_tue_thu_conjunction])
+                prefix = 'lecture_symm'
+
+                # C has one 3-hour lecture
+                only_lec = self.model.NewBoolVar(prefix + f'_only_lec_cur{cur_id}c{c_id}')
+                mon_lec = self.model.NewBoolVar(prefix + f'_mon_lec_cur{cur_id}c{c_id}')
+                self.model.Add(mon_duration == 6).OnlyEnforceIf(mon_lec)
+                tue_lec = self.model.NewBoolVar(prefix + f'_tue_lec_cur{cur_id}c{c_id}')
+                self.model.Add(tue_duration == 6).OnlyEnforceIf(tue_lec)
+                wed_lec = self.model.NewBoolVar(prefix + f'_wed_lec_cur{cur_id}c{c_id}')
+                self.model.Add(wed_duration == 6).OnlyEnforceIf(wed_lec)
+                thu_lec = self.model.NewBoolVar(prefix + f'_thu_lec_cur{cur_id}c{c_id}')
+                self.model.Add(thu_duration == 6).OnlyEnforceIf(thu_lec)
+                fri_lec = self.model.NewBoolVar(prefix + f'_fri_lec_cur{cur_id}c{c_id}')
+                self.model.Add(fri_duration == 6).OnlyEnforceIf(fri_lec)
+
+                # Conjunction A
+                tue_thu_start = self.model.NewBoolVar(prefix + 
+                        f'_tue_thu_start{cur_id}c{c_id}')
+                self.model.Add(tue_start == thu_start).OnlyEnforceIf(tue_thu_start)
+                tue_thu_duration = self.model.NewBoolVar(prefix + 
+                        f'_tue_thu_duration{cur_id}c{c_id}')
+                self.model.Add(tue_duration == thu_duration).OnlyEnforceIf(tue_thu_duration)
+                tue_nonzero_duration = self.model.NewBoolVar(prefix + 
+                        f'_tue_nonzero_duration{cur_id}c{c_id}')
+                self.model.Add(tue_duration != 0).OnlyEnforceIf(tue_nonzero_duration)
+                conjunction_a = self.model.NewBoolVar(prefix + 
+                        f'_conjunction_a_{cur_id}c{c_id}')
+                self.model.AddBoolAnd([tue_thu_start, 
+                                       tue_thu_duration,
+                                       tue_nonzero_duration]).OnlyEnforceIf(conjunction_a)
+
+                # Conjunction B
+                mon_wed_start = self.model.NewBoolVar(prefix + 
+                        f'_mon_wed_start{cur_id}c{c_id}')
+                self.model.Add(mon_start == wed_start).OnlyEnforceIf(mon_wed_start)
+                mon_wed_duration = self.model.NewBoolVar(prefix + 
+                        f'_mon_wed_duration{cur_id}c{c_id}')
+                self.model.Add(mon_duration == wed_duration).OnlyEnforceIf(mon_wed_duration)
+                wed_fri_start = self.model.NewBoolVar(prefix + 
+                        f'_wed_fri_start{cur_id}c{c_id}')
+                self.model.Add(wed_start == fri_start).OnlyEnforceIf(wed_fri_start)
+                wed_fri_duration = self.model.NewBoolVar(prefix + 
+                        f'_wed_fri_duration{cur_id}c{c_id}')
+                self.model.Add(wed_duration == fri_duration).OnlyEnforceIf(wed_fri_duration)
+                mon_nonzero_duration = self.model.NewBoolVar(prefix + 
+                        f'_mon_nonzero_duration{cur_id}c{c_id}')
+                self.model.Add(mon_duration != 0).OnlyEnforceIf(mon_nonzero_duration)
+                conjunction_b = self.model.NewBoolVar(prefix + 
+                        f'_conjunction_b_{cur_id}c{c_id}')
+                self.model.AddBoolAnd([mon_wed_start, 
+                                       mon_wed_duration,
+                                       wed_fri_start,
+                                       wed_fri_duration,
+                                       mon_nonzero_duration]).OnlyEnforceIf(conjunction_b)
+
+                # Conjunction C
+                fri_zero_duration = self.model.NewBoolVar(prefix + 
+                        f'_fri_zero_duration{cur_id}c{c_id}')
+                self.model.Add(fri_duration == 0).OnlyEnforceIf(fri_zero_duration)
+                conjunction_c = self.model.NewBoolVar(prefix + 
+                        f'_conjunction_c_{cur_id}c{c_id}')
+                self.model.AddBoolAnd([mon_wed_start, 
+                                       mon_wed_duration,
+                                       fri_zero_duration,
+                                       mon_nonzero_duration]).OnlyEnforceIf(conjunction_c)
+                # XOR
+                self.model.AddBoolXOr([mon_lec,
+                                       tue_lec,
+                                       wed_lec,
+                                       thu_lec,
+                                       fri_lec,
+                                       conjunction_a,
+                                       conjunction_b,
+                                       conjunction_c])
 
 
     def solve(self, callback: cp_model.CpSolverSolutionCallback, max_time: int=None):
@@ -410,17 +470,17 @@ def main():
     sched.add_sync_across_curricula_constraints()
     sched.add_lecture_symmetry_constraints()
 
-    sched.add_unavailability_constraints(0, 1, [(3, 5)])
-    sched.add_unavailability_constraints(1, 1, [(3, 5)])
-    sched.add_unavailability_constraints(2, 1, [(3, 5)])
-    sched.add_unavailability_constraints(3, 1, [(3, 5)])
-    sched.add_unavailability_constraints(4, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(0, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(1, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(2, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(3, 1, [(3, 5)])
+    # sched.add_unavailability_constraints(4, 1, [(3, 5)])
 
-    sched.add_unavailability_constraints(0, 3, [(3, 5)])
-    sched.add_unavailability_constraints(1, 3, [(3, 5)])
-    sched.add_unavailability_constraints(2, 3, [(3, 5)])
-    sched.add_unavailability_constraints(3, 3, [(3, 5)])
-    sched.add_unavailability_constraints(4, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(0, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(1, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(2, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(3, 3, [(3, 5)])
+    # sched.add_unavailability_constraints(4, 3, [(3, 5)])
     # sched.add_unavailability_constraints(3, 1, [(0, 7)])
     # sched.add_unavailability_constraints(1, 0, [(0, 7)])
     # sched.add_unavailability_constraints(1, 1, [(2, 7)])

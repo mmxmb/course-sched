@@ -140,16 +140,45 @@ class TestLectureSymmetryCallback(SolverCallbackUtil):
         if self._solution_count in self._solutions:
             for cur_id, cur in self._curricula.items():
                 for c_id, c in cur.courses.items():
-                    # check Tue and Thu
 
+                    mon_start = self.Value(self._model_vars[cur_id, 0, c_id].start)
                     tue_start = self.Value(self._model_vars[cur_id, 1, c_id].start)
-                    tue_duration = self.Value(self._model_vars[cur_id, 1, c_id].duration)
+                    wed_start = self.Value(self._model_vars[cur_id, 2, c_id].start)
                     thu_start = self.Value(self._model_vars[cur_id, 3, c_id].start)
+                    fri_start = self.Value(self._model_vars[cur_id, 4, c_id].start)
+                    mon_duration = self.Value(self._model_vars[cur_id, 0, c_id].duration)
+                    tue_duration = self.Value(self._model_vars[cur_id, 1, c_id].duration)
+                    wed_duration = self.Value(self._model_vars[cur_id, 2, c_id].duration)
                     thu_duration = self.Value(self._model_vars[cur_id, 3, c_id].duration)
+                    fri_duration = self.Value(self._model_vars[cur_id, 4, c_id].duration)
 
-                    if tue_duration and thu_duration and tue_duration != 6 and thu_duration != 6:
+                    if tue_duration and thu_duration:
                         if tue_start != thu_start or tue_duration != thu_duration:
                             self.msg = f"Courses on Tue and Thu are not symmetric"
+                            self.success = False
+                            self.StopSearch()
+                        elif mon_duration or wed_duration or fri_duration:
+                            self.msg = f"When course is on Tue and Thu, there should be no courses on other days" 
+                            self.success = False
+                            self.StopSearch()
+                    elif mon_duration and wed_duration and not fri_duration:
+                        if mon_start != wed_start or mon_duration != wed_duration:
+                            self.msg = f"Courses on Mon and Wed are not symmetric"
+                            self.success = False
+                            self.StopSearch()
+                        elif tue_duration or thu_duration:
+                            self.msg = f"When course is on Mon and Wed, there should be no courses on other days" 
+                            self.success = False
+                            self.StopSearch()
+                    elif mon_duration and wed_duration and fri_duration:
+                        if mon_start != wed_start or mon_duration != wed_duration or \
+                                wed_start != fri_start or wed_duration != fri_duration or \
+                                mon_start != fri_start or mon_duration != fri_duration:
+                            self.msg = f"Courses on Mon and Wed and Fri are not symmetric"
+                            self.success = False
+                            self.StopSearch()
+                        elif tue_duration or thu_duration:
+                            self.msg = f"When course is on Mon and Wed and Fri, there should be no courses on other days" 
                             self.success = False
                             self.StopSearch()
         else:
