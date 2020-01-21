@@ -4,4 +4,7 @@ run:
 test:
 	python3 course_sched/course_sched_test.py
 
-.PHONY: run test
+freeze:
+	pip3 freeze -r requirements.txt
+
+.PHONY: run test freeze
