@@ -444,7 +444,7 @@ class CourseSched:
 
 def main():
 
-    n_periods = 8 # 26 8:30 = 0 -> 21:30 = 2 
+    n_periods = 26 # 26 8:30 = 0 -> 21:30 = 2 
     n_days = 5 
 
     c0 = Course(0, 6)
@@ -486,7 +486,7 @@ def main():
     # sched.add_unavailability_constraints(1, 1, [(2, 7)])
     # sched.add_unavailability_constraints(1, 2, [(2, 7)])
 
-    n_solutions = 2999
+    n_solutions = 10
 
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars, 
                                                    sched.curricula, 
