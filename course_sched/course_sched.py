@@ -1,7 +1,11 @@
 import collections
+import os
 from typing import List, Tuple, NewType, Dict
 from dataclasses import dataclass
 from ortools.sat.python import cp_model
+
+from dotenv import load_dotenv
+load_dotenv()
 
 Interval = NewType('Interval', Tuple[int, int])
 
@@ -488,8 +492,8 @@ class CourseSched:
 
 def main():
 
-    n_periods = 26  # 26 8:30 = 0 -> 21:30 = 2
-    n_days = 5
+    n_periods = 8  # real day has os.getenv("PERIODS_PER_DAY") periods
+    n_days = os.getenv("DAYS_PER_WEEK")
 
     c0 = Course(0, 6)
     c1 = Course(1, 4)
@@ -530,7 +534,7 @@ def main():
     # sched.add_unavailability_constraints(1, 1, [(2, 7)])
     # sched.add_unavailability_constraints(1, 2, [(2, 7)])
 
-    n_solutions = 10
+    n_solutions = 1000
 
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
                                                    sched.curricula,

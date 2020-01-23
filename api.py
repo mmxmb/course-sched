@@ -16,7 +16,7 @@ class HelloWorld(Resource):
         validated = schema.validate(data)
         return {'hello': 'world'}
 
-api.add_resource(HelloWorld, '/')
+api.add_resource(HelloWorld, '/sched')
 
 if __name__ == '__main__':
     app.run(debug=True)
