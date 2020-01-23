@@ -41,6 +41,16 @@ You can deactivate the virtual environment by entering `deactivate`.
 
 To remove the virtual environment, simply remove the directory `venv` that was created in step 2.
 
+## Environment variables
+
+Create `.env` file in the root with the following contents:
+
+```
+ERIODS_PER_DAY=26
+API_MAX_N_SOLUTIONS=999
+DAYS_PER_WEEK=5
+```
+
 ## Testing
 
 `unittest` is used for testing. Run tests using:
