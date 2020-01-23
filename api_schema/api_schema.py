@@ -26,12 +26,10 @@ _constraint_schema = Schema({'course_id': And(str, len),
                              }], len)
                              })
 
-_day_sched_schema = Schema(
-    {
-        'day': And(
-            Use(int), lambda n: n in DAYS_RANGE), 'start': And(
-                Use(int), lambda n: n in PERIODS_RANGE), 'duration': And(
-                    Use(int), lambda n: n in DAY_N_PERIODS)})
+_day_sched_schema = Schema({'day': And(Use(int), lambda n: n in DAYS_RANGE),
+                            'start': And(Use(int), lambda n: n in PERIODS_RANGE),
+                            'duration': And(Use(int), lambda n: n in DAY_N_PERIODS)
+                            })
 
 _sched_course_schema = Schema({'course_id': And(str, len),
                                'schedule': And([_day_sched_schema], len)
