@@ -32,7 +32,7 @@ class ModelVarsNotInitialized(Exception):
 
 class Course:
 
-    def __init__(self, _id, n_periods):
+    def __init__(self, _id: str, n_periods: int):
         self._id = _id
         self.n_periods = n_periods
         self.curricula = {}
@@ -46,7 +46,7 @@ class Course:
 
 class Curriculum:
 
-    def __init__(self, _id: int, courses: List[Course]):
+    def __init__(self, _id: str, courses: List[Course]):
         self._id = _id
         self._verify_unique_ids(courses)
         self._add_courses(courses)
@@ -69,8 +69,9 @@ class SolverCallbackUtil(cp_model.CpSolverSolutionCallback):
     """
 
     def __init__(self,
-                 model_vars: Dict[Tuple[int,
-                                        int],
+                 model_vars: Dict[Tuple[str,
+                                        int,
+                                        str],
                                   ModelVar],
                  curricula: List[Curriculum],
                  n_days: int,
@@ -113,7 +114,7 @@ class SchedPartialSolutionPrinter(SolverCallbackUtil):
                  model_vars: Dict[Tuple[int,
                                         int],
                                   ModelVar],
-                 curricula: Dict[int,
+                 curricula: Dict[str,
                                  Curriculum],
                  n_days: int,
                  n_periods: int,
@@ -125,6 +126,53 @@ class SchedPartialSolutionPrinter(SolverCallbackUtil):
         if self._solution_count in self._solutions:
             print(f'Solution {self._solution_count}')
             print(self.sol_to_str())
+        else:
+            self.StopSearch()
+        self._solution_count += 1
+
+class SchedPartialSolutionSerializer(SolverCallbackUtil):
+
+    def __init__(self,
+                 model_vars: Dict[Tuple[str,
+                                        int,
+                                        str],
+                                  ModelVar],
+                 curricula: Dict[str,
+                                 Curriculum],
+                 n_days: int,
+                 n_periods: int,
+                 n_solutions: int):
+        self.solutions = {"n_solutions": 0,
+                          "solutions": []
+                         }
+        SolverCallbackUtil.__init__(
+            self, model_vars, curricula, n_days, n_periods, n_solutions)
+
+    def serialize_sol(self):
+        solution = {'solution_id': str(self._solution_count),
+                    'curricula': []}
+        for cur_id, cur in self._curricula.items():
+            new_curriculum = {'curriculum_id': cur_id, 
+                              'courses': []}
+            solution['curricula'].append(new_curriculum)
+            for c_id in cur.courses.keys():
+                new_course = {'course_id': c_id,
+                              'schedule': []}
+                solution['curricula'][-1]['courses'].append(new_course)
+                for d in range(self._n_days):
+                    start = self.Value(self._model_vars[cur_id, d, c_id].start)
+                    duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                    if duration:
+                        day_sched = {'day': d,
+                                     'start': start,
+                                     'duration': duration}
+                        solution['curricula'][-1]['courses'][-1]['schedule'].append(day_sched)
+        self.solutions["solutions"].append(solution)
+        self.solutions["n_solutions"] += 1
+
+    def on_solution_callback(self):
+        if self._solution_count in self._solutions:
+            self.serialize_sol()
         else:
             self.StopSearch()
         self._solution_count += 1
@@ -279,7 +327,7 @@ class CourseSched:
                                    range(self.n_days)) == c.n_periods)
 
     def add_unavailability_constraints(
-            self, c_id: int, day: int, intervals: List[Interval]):
+            self, c_id: str, day: int, intervals: List[Interval]):
         """ Marks certain `intervals` of a particular `day` unavailable for scheduling for a
             particular course (identified by `c_id`).
         """
@@ -495,20 +543,20 @@ def main():
     n_periods = 8  # real day has os.getenv("PERIODS_PER_DAY") periods
     n_days = int(os.getenv("DAYS_PER_WEEK"))
 
-    c0 = Course(0, 6)
-    c1 = Course(1, 4)
-    c2 = Course(2, 6)
-    c3 = Course(3, 6)
+    c0 = Course('0', 6)
+    c1 = Course('1', 4)
+    c2 = Course('2', 6)
+    c3 = Course('3', 6)
 
-    c4 = Course(4, 6)
-    c5 = Course(5, 6)
-    c6 = Course(6, 6)
+    c4 = Course('4', 6)
+    c5 = Course('5', 6)
+    c6 = Course('6', 6)
 
     courses0 = [c0, c1, c2, c3]
     courses1 = [c4, c3, c2, c1]
 
-    cur0 = Curriculum(0, courses0)
-    cur1 = Curriculum(1, courses1)
+    cur0 = Curriculum('0', courses0)
+    cur1 = Curriculum('1', courses1)
     curricula = [cur0, cur1]
 
     sched = CourseSched(n_days, n_periods, curricula)
@@ -534,14 +582,21 @@ def main():
     # sched.add_unavailability_constraints(1, 1, [(2, 7)])
     # sched.add_unavailability_constraints(1, 2, [(2, 7)])
 
-    n_solutions = 1000
+    n_solutions = 1
 
-    solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
+    # solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
+                                                   # sched.curricula,
+                                                   # sched.n_days,
+                                                   # sched.n_periods,
+                                                   # n_solutions)
+    solution_printer = SchedPartialSolutionSerializer(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions)
+
     sched.solve(solution_printer)
+    print(solution_printer.solutions)
     sched.print_statistics(solution_printer)
 
 

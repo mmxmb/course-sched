@@ -1,8 +1,11 @@
 import unittest
-from course_sched import CourseSched, Course, Curriculum, SolverCallbackUtil, COURSE_GRANULARITY
+from course_sched import CourseSched, Course, Curriculum, SolverCallbackUtil, COURSE_GRANULARITY, SchedPartialSolutionSerializer
+import os
+import sys
+sys.path.append(os.path.abspath('./api_schema'))
+from api_schema import response_schema
 
-N_SOL_PER_TEST = 4999
-
+N_SOL_PER_TEST = 100
 
 class TestSchedPeriodSumCallback(SolverCallbackUtil):
 
@@ -218,19 +221,18 @@ class TestLectureSymmetryCallback(SolverCallbackUtil):
             self.StopSearch()
         self._solution_count += 1
 
-
 class TestCourseSched(unittest.TestCase):
 
     def test_sched_periods_sum(self):
         """ Sum of scheduled periods per course per week
             must be equal to the `n_periods` for the corresponding `Course`.
         """
-        c0, c1, c2, c3 = Course(0, 6), Course(1, 6), Course(2, 4), Course(3, 6)
-        c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
+        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
-        cur0 = Curriculum(0, courses0)
-        cur1 = Curriculum(1, courses1)
+        cur0 = Curriculum('0', courses0)
+        cur1 = Curriculum('1', courses1)
         curricula = [cur0, cur1]
         n_days = 3
         n_periods = 8
@@ -260,9 +262,9 @@ class TestCourseSched(unittest.TestCase):
         """ Intervals marked as unavailable for particular courses
             must not be taken by those courses.
         """
-        c0, c1, c2, c3 = Course(0, 6), Course(1, 4), Course(2, 6), Course(3, 6)
+        c0, c1, c2, c3 = Course('0', 6), Course('1', 4), Course('2', 6), Course('3', 6)
         courses = [c0, c1, c2, c3]
-        cur = Curriculum(0, courses)
+        cur = Curriculum('0', courses)
         curricula = [cur]
         n_days = 3
         n_periods = 10
@@ -273,13 +275,13 @@ class TestCourseSched(unittest.TestCase):
         sched.add_lecture_len_constraints()
 
         # Course 3 can only happen on day 2
-        sched.add_unavailability_constraints(3, 0, [(0, 9)])
-        sched.add_unavailability_constraints(3, 1, [(0, 9)])
+        sched.add_unavailability_constraints('3', 0, [(0, 9)])
+        sched.add_unavailability_constraints('3', 1, [(0, 9)])
 
         # Course 1 can only happen in the first two periods of days 1 and 2
-        sched.add_unavailability_constraints(1, 0, [(0, 9)])
-        sched.add_unavailability_constraints(1, 1, [(2, 9)])
-        sched.add_unavailability_constraints(1, 2, [(2, 9)])
+        sched.add_unavailability_constraints('1', 0, [(0, 9)])
+        sched.add_unavailability_constraints('1', 1, [(2, 9)])
+        sched.add_unavailability_constraints('1', 2, [(2, 9)])
 
         test_callback = TestSchedUnavailabilityConstraintsCallback(sched.model_vars,
                                                                    sched.curricula,
@@ -294,12 +296,12 @@ class TestCourseSched(unittest.TestCase):
     def test_lecture_len_constraint(self):
         """ Lecture lengths must be 2, 3 or 6.
         """
-        c0, c1, c2, c3 = Course(0, 6), Course(1, 6), Course(2, 4), Course(3, 6)
-        c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
+        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
-        cur0 = Curriculum(0, courses0)
-        cur1 = Curriculum(1, courses1)
+        cur0 = Curriculum('0', courses0)
+        cur1 = Curriculum('1', courses1)
         curricula = [cur0, cur1]
         n_days = 3
         n_periods = 10
@@ -322,16 +324,16 @@ class TestCourseSched(unittest.TestCase):
     def test_curricula_sync(self):
         """ Courses shared across different curricula must happen at the same time.
         """
-        c0, c1, c2, c3 = Course(0, 6), Course(1, 6), Course(2, 4), Course(3, 6)
-        c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
-        c8, c9, c10, c11 = Course(8, 6), Course(
-            9, 4), Course(10, 6), Course(11, 4)
+        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c8, c9, c10, c11 = Course('8', 6), Course(
+            '9', 4), Course('10', 6), Course('11', 4)
         courses0 = [c0, c1, c2, c3, c11]
         courses1 = [c4, c5, c6, c7, c0, c1, c9]
         courses2 = [c0, c5, c6, c3, c10, c8]
-        cur0 = Curriculum(0, courses0)
-        cur1 = Curriculum(1, courses1)
-        cur2 = Curriculum(2, courses2)
+        cur0 = Curriculum('0', courses0)
+        cur1 = Curriculum('1', courses1)
+        cur2 = Curriculum('2', courses2)
         curricula = [cur0, cur1, cur2]
         n_days = 5
         n_periods = 10
@@ -357,10 +359,10 @@ class TestCourseSched(unittest.TestCase):
         """ Lectures have to be scheduled symmetrically. I.e. a 1.5 hour lecture at 1PM Tue
             must also be scheduled for 1PM Thu.
         """
-        c0, c1, c2, c3 = Course(0, 6), Course(1, 4), Course(2, 6), Course(3, 6)
-        c4, c5, c6, c7 = Course(4, 6), Course(5, 4), Course(6, 4), Course(7, 4)
+        c0, c1, c2, c3 = Course('0', 6), Course('1', 4), Course('2', 6), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
         courses = [c0, c1, c2, c3, c4, c5, c6, c7]
-        cur = Curriculum(0, courses)
+        cur = Curriculum('0', courses)
         curricula = [cur]
         n_days = 5
         n_periods = 8
@@ -382,6 +384,37 @@ class TestCourseSched(unittest.TestCase):
         test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
         self.assertTrue(test_callback.success, msg=test_msg)
 
+    def test_solution_serializer(self):
+        """ Test solution serializer used by the API.
+        """
+        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        courses0 = [c0, c1, c2, c3]
+        courses1 = [c4, c5, c6, c7]
+        cur0 = Curriculum('0', courses0)
+        cur1 = Curriculum('1', courses1)
+        curricula = [cur0, cur1]
+        n_days = 3
+        n_periods = 8
+
+        sched = CourseSched(n_days, n_periods, curricula)
+        sched.add_no_overlap_constraints()
+        sched.add_course_len_constraints()
+        sched.add_lecture_len_constraints()
+
+
+        serializer_callback = SchedPartialSolutionSerializer(sched.model_vars,
+                                                             sched.curricula,
+                                                             sched.n_days,
+                                                             sched.n_periods,
+                                                             N_SOL_PER_TEST)
+
+        sched.solve(serializer_callback)
+        solutions = serializer_callback.solutions
+        try:
+            response_schema.validate(solutions)
+        except SchemaError as e:
+            self.fail(f"Schema validation error: {e}")
 
 if __name__ == '__main__':
     unittest.main()

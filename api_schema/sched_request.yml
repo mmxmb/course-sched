@@ -1,0 +1,15 @@
+Request
+---
+parameters:
+  - name: n_solutions
+    in: path
+    type: integer
+    required: true
+    default: 10
+  - name: curricula
+    in: path
+    type: object
+    required: true
+  - name: constraints
+    in: path
+    type:
