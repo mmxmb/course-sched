@@ -172,6 +172,7 @@ class SchedPartialSolutionSerializer(SolverCallbackUtil):
 
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
+            print(self.sol_to_str())
             self.serialize_sol()
         else:
             self.StopSearch()
@@ -542,21 +543,20 @@ def main():
 
     n_periods = 8  # real day has os.getenv("PERIODS_PER_DAY") periods
     n_days = int(os.getenv("DAYS_PER_WEEK"))
+    
+    c1 = Course("0UoeRGKWlpKzZgs7", 6)
+    c2 = Course("FQJSAdpeIy9rJU1H", 6) 
+    c3 = Course("8sMA05cToLsEKB3y", 4) 
+    c4 = Course("BbjRKtortAflVFLL", 6) 
+    courses0 = [c1, c2, c3, c4]
 
-    c0 = Course('0', 6)
-    c1 = Course('1', 4)
-    c2 = Course('2', 6)
-    c3 = Course('3', 6)
+    c5 = Course("hFUhTu8WIEeQEQ3i", 4)
+    c6 = Course("YlFH40I1LBgH9vEI", 6) 
+    c7 = Course("jWtVT6TsTjz0lFQb", 6) 
+    courses1 = [c4, c5, c6, c7]
 
-    c4 = Course('4', 6)
-    c5 = Course('5', 6)
-    c6 = Course('6', 6)
-
-    courses0 = [c0, c1, c2, c3]
-    courses1 = [c4, c3, c2, c1]
-
-    cur0 = Curriculum('0', courses0)
-    cur1 = Curriculum('1', courses1)
+    cur0 = Curriculum("hXkY1ChCPUcdRMbz", courses0)
+    cur1 = Curriculum("yGGLYSENM97GC0A3", courses1)
     curricula = [cur0, cur1]
 
     sched = CourseSched(n_days, n_periods, curricula)
@@ -566,9 +566,9 @@ def main():
     sched.add_sync_across_curricula_constraints()
     sched.add_lecture_symmetry_constraints()
 
-    # sched.add_unavailability_constraints(0, 1, [(3, 5)])
-    # sched.add_unavailability_constraints(1, 1, [(3, 5)])
-    # sched.add_unavailability_constraints(2, 1, [(3, 5)])
+    sched.add_unavailability_constraints("hFUhTu8WIEeQEQ3i", 2, [(0, 4), (6, 9)])
+    sched.add_unavailability_constraints("hFUhTu8WIEeQEQ3i", 4, [(4, 9)])
+    sched.add_unavailability_constraints("jWtVT6TsTjz0lFQb", 3, [(10, 14), (16, 19)])
     # sched.add_unavailability_constraints(3, 1, [(3, 5)])
     # sched.add_unavailability_constraints(4, 1, [(3, 5)])
 
@@ -582,21 +582,21 @@ def main():
     # sched.add_unavailability_constraints(1, 1, [(2, 7)])
     # sched.add_unavailability_constraints(1, 2, [(2, 7)])
 
-    n_solutions = 1
+    n_solutions = 2
 
-    # solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
-                                                   # sched.curricula,
-                                                   # sched.n_days,
-                                                   # sched.n_periods,
-                                                   # n_solutions)
-    solution_printer = SchedPartialSolutionSerializer(sched.model_vars,
+    solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions)
+    # solution_printer = SchedPartialSolutionSerializer(sched.model_vars,
+                                                   # sched.curricula,
+                                                   # sched.n_days,
+                                                   # sched.n_periods,
+                                                   # n_solutions)
 
     sched.solve(solution_printer)
-    print(solution_printer.solutions)
+    # print(solution_printer.solutions)
     sched.print_statistics(solution_printer)
 
 
