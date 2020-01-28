@@ -71,6 +71,6 @@ steps:
   - 'docker run  --restart always --name course-sched -d -p 443:443  --log-driver=gcplogs  gcr.io/$PROJECT_ID/course-sched:$SHORT_SHA'
 
 substitutions:
-  _SERVER: 'my-gce-vm-server'
-  _ZONE: 'us-east1-c'
+  _SERVER: 'course-sched-vm'
+  _ZONE: 'northamerica-northeast1-a'
 # [END cloudbuild]
