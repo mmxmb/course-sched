@@ -28,9 +28,10 @@ steps:
 
 # Connect to GCE server and pull new image
 - name: 'gcr.io/cloud-builders/gcloud'
+  id: Pull
   args: 
   - 'compute'
-  - 'ssh', 
+  - 'ssh'
   - '$_SERVER' 
   - '--zone'
   - '$_ZONE'
@@ -39,9 +40,10 @@ steps:
 
 # Connect to server and stop current container
 - name: 'gcr.io/cloud-builders/gcloud'
+  id: Stop
   args:
   - 'compute'
-  - 'ssh', 
+  - 'ssh'
   - '$_SERVER' 
   - '--zone'
   - '$_ZONE'
@@ -50,9 +52,10 @@ steps:
 
 # Connect to server and remove current container
 - name: 'gcr.io/cloud-builders/gcloud'
+  id: Remove
   args:
   - 'compute'
-  - 'ssh', 
+  - 'ssh'
   - '$_SERVER' 
   - '--zone'
   - '$_ZONE'
@@ -61,6 +64,7 @@ steps:
 
   # Connect to server and start new container
 - name: 'gcr.io/cloud-builders/gcloud'
+  id: Start
   args: 
   - 'compute'
   - 'ssh'
