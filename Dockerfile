@@ -2,10 +2,7 @@
 # https://hub.docker.com/_/python
 FROM python:3.7-slim
 
-ENV PERIODS_PER_DAY 26
-ENV API_MAX_N_SOLUTIONS 999
-ENV DAYS_PER_WEEK 5
-ENV PORT 8080
+ENV PERIODS_PER_DAY=26, API_MAX_N_SOLUTIONS=999, DAYS_PER_WEEK=5, PORT=80
 
 # Copy local code to the container image.
 ENV APP_HOME /app
