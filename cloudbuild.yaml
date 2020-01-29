@@ -38,6 +38,8 @@ steps:
   - '$_REGION'
   - '--platform'
   - 'managed'
+  - '--max-instances'
+  - '2'
 
 substitutions:
   _SERVICE_NAME: 'course-sched'
