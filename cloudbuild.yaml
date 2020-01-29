@@ -26,55 +26,22 @@ steps:
   - 'push'
   - 'gcr.io/$PROJECT_ID/course-sched:$SHORT_SHA'
 
-# Connect to GCE server and pull new image
 - name: 'gcr.io/cloud-builders/gcloud'
-  id: Pull
-  args: 
-  - 'compute'
-  - 'ssh'
-  - '$_SERVER' 
-  - '--zone'
-  - '$_ZONE'
-  - '--command'
-  - 'gcloud docker -- pull gcr.io/$PROJECT_ID/course-sched:$SHORT_SHA'
-
-# Connect to server and stop current container
-- name: 'gcr.io/cloud-builders/gcloud'
-  id: Stop
+  id: Run
   args:
-  - 'compute'
-  - 'ssh'
-  - '$_SERVER' 
-  - '--zone'
-  - '$_ZONE'
-  - '--command'
-  - 'docker stop course-sched'
-
-# Connect to server and remove current container
-- name: 'gcr.io/cloud-builders/gcloud'
-  id: Remove
-  args:
-  - 'compute'
-  - 'ssh'
-  - '$_SERVER' 
-  - '--zone'
-  - '$_ZONE'
-  - '--command'
-  - 'docker rm course-sched'
-
-  # Connect to server and start new container
-- name: 'gcr.io/cloud-builders/gcloud'
-  id: Start
-  args: 
-  - 'compute'
-  - 'ssh'
-  - '$_SERVER'
-  - '--zone'
-  - '$_ZONE'
-  - '--command'
-  - 'docker run  --restart always --name course-sched -d -p 443:443  --log-driver=gcplogs  gcr.io/$PROJECT_ID/course-sched:$SHORT_SHA'
+  - 'run'
+  - 'deploy'
+  - '$_SERVICE_NAME'
+  - '--image'
+  - 'gcr.io/$PROJECT_ID/course-sched:latest'
+  - '--region'
+  - '$_REGION'
+  - '--platform'
+  - 'managed'
+  - '--allow-unauthenticated'
 
 substitutions:
-  _SERVER: 'course-sched-vm'
-  _ZONE: 'northamerica-northeast1-a'
+  _SERVICE_NAME: 'course-sched'
+  _REGION: 'us-central1'
 # [END cloudbuild]
+

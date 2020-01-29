@@ -15,11 +15,6 @@ class Scheduler(Resource):
     def post(self):
         periods_per_day = int(os.getenv("PERIODS_PER_DAY")) 
         n_days = int(os.getenv("DAYS_PER_WEEK"))
-
-        # print('hello')
-        # data = [{'name': 'Sue', 'age': '28', 'gender': 'Squid'},
-                # {'name': 'Sam', 'age': '42'},
-                # {'name': 'Sacha', 'age': '20', 'gender': 'KID'}]
         validated = request_schema.validate(request.json)
          
         # for item in request.json:
@@ -28,18 +23,18 @@ class Scheduler(Resource):
         constraints = validated['constraints']
         L_curriculums = []
 
-        for curr in curricula:                        # run through the curriculums
+        for curr in curricula: # run through the curriculums
             curriculum_id = curr['curriculum_id']
             courses = curr['courses']
             L_courses = []
         
-            for cour in courses:                  # run through the courses 
+            for cour in courses: # run through the courses 
                 # what happens if courses ids are similar?
                 course_id = cour['course_id']
                 n_periods = cour['n_periods']
                 L_courses.append(Course(course_id ,n_periods))  # calling the Course function in the course_sched class
         
-            L_curriculums.append(Curriculum(curriculum_id, L_courses))        # calling the Curriculum function in the course_sched class
+            L_curriculums.append(Curriculum(curriculum_id, L_courses)) # calling the Curriculum function in the course_sched class
 
         curricula = L_curriculums
         
@@ -70,53 +65,19 @@ class Scheduler(Resource):
         # instantiate sched with class CourseSched 
 
 
-        print(sched.n_periods)
         solution_printer = SchedPartialSolutionSerializer(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions)
         sched.solve(solution_printer)
-        # print(solution_printer.solutions)
 
         schedule_info = solution_printer.solutions
-        print(schedule_info)
 
         return jsonify(schedule_info)
 
 
 api.add_resource(Scheduler, '/sched')
 
-#resp1 = requests.get('http://localhost:3000/')
-#for item in resp1.json():
-#   n_solutions = item['n_solutions']
-#   curricula = item['curricula'].
-#   print('{} {}'.format(item['n_solutions'], item['curriculum_id']))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#CourseSchedule = CourseSched
-#schedule =  CourseSchedule(n_days, n_periods, curricula)
-#   schedule.add_no_overlap_constraints()
-  
-
-
-#resp2 = requests.post('https://todolist.example.com/tasks/',
-#                     data=json.dumps(data),   # json.dumps(schedule) 
- #                    headers={'Content-Type':'application/json'},  # do we need this line)
-#print('created schedule curriculum_id: {}'.format(resp2.json()["curriculum_id"]))                     
-
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))

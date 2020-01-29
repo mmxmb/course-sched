@@ -172,7 +172,6 @@ class SchedPartialSolutionSerializer(SolverCallbackUtil):
 
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
-            print(self.sol_to_str())
             self.serialize_sol()
         else:
             self.StopSearch()
