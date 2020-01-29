@@ -40,6 +40,8 @@ steps:
   - 'managed'
   - '--max-instances'
   - '2'
+  - '--concurrency'
+  - '2'
 
 substitutions:
   _SERVICE_NAME: 'course-sched'
