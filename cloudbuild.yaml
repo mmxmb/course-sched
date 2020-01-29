@@ -38,7 +38,6 @@ steps:
   - '$_REGION'
   - '--platform'
   - 'managed'
-  - '--allow-unauthenticated'
 
 substitutions:
   _SERVICE_NAME: 'course-sched'
