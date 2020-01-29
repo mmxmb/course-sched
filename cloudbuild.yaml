@@ -33,7 +33,7 @@ steps:
   - 'deploy'
   - '$_SERVICE_NAME'
   - '--image'
-  - 'gcr.io/$PROJECT_ID/course-sched:latest'
+  - 'gcr.io/$PROJECT_ID/course-sched:$SHORT_SHA'
   - '--region'
   - '$_REGION'
   - '--platform'
