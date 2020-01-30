@@ -3,6 +3,8 @@ from flask import Flask, request , jsonify
 from flask_restful import Resource, Api
 import json
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 from api_schema.api_schema import request_schema
 from course_sched.course_sched import CourseSched, Course, Curriculum, SchedPartialSolutionSerializer
@@ -10,6 +12,13 @@ from course_sched.course_sched import CourseSched, Course, Curriculum, SchedPart
 
 app = Flask(__name__)
 api = Api(app)
+
+class Version(Resource):
+    def get(self):
+        resp = {'name': 'course-sched',
+                'version': os.environ.get('VERSION', '1.0')}
+        return jsonify(resp)
+
 
 class Scheduler(Resource):
     def post(self):
@@ -76,8 +85,8 @@ class Scheduler(Resource):
 
         return jsonify(schedule_info)
 
-
-api.add_resource(Scheduler, '/sched')
+api.add_resource(Scheduler, "/sched")
+api.add_resource(Version, "/version")
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
