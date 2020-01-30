@@ -5,7 +5,7 @@ steps:
   entrypoint: /bin/sh
   args:
   - -c
-  - 'make test'
+  - 'pip install -r requirements.txt && python course_sched/test_course_sched.py && python api_schema/test_api_schema.py'
 
 # This step builds the container image.
 - name: 'gcr.io/cloud-builders/docker'
