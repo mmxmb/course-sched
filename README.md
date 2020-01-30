@@ -61,8 +61,8 @@ curl -i -X POST -H "Authorization: Bearer $(gcloud auth print-identity-token)" -
 ##### Using the cloned version of the repo
 
 1. Clone this repo.
-2. Follow the steps in [Development](##development) section on initial setup, envvars and running API locally.
-3. Invoke API like in [Docker image case](####using-docker-image).
+2. Follow the steps in [Development](#development) section on initial setup, envvars and running API locally.
+3. Invoke API like in [Docker image case](#using-docker-image).
 
 ### Using course scheduling API in production 
 
