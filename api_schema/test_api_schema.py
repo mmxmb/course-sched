@@ -21,7 +21,7 @@ class TestApiRequestSchema(unittest.TestCase):
                         {
                             'course_id': "FQJSAdpeIy9rJU1H",
                             'n_periods': 6,
-                        ,
+                        },
                         {
                             'course_id': "8sMA05cToLsEKB3y",
                             'n_periods': 4,

@@ -1,0 +1,87 @@
+{
+  "n_solutions": 2,
+  "curricula": [
+    {
+      "curriculum_id": "hXkY1ChCPUcdRMbz",
+      "courses": [
+        {
+          "course_id": "0UoeRGKWlpKzZgs7",
+          "n_periods": 6
+        },
+        {
+          "course_id": "FQJSAdpeIy9rJU1H",
+          "n_periods": 6
+        },
+        {
+          "course_id": "8sMA05cToLsEKB3y",
+          "n_periods": 4
+        },
+        {
+          "course_id": "BbjRKtortAflVFLL",
+          "n_periods": 6
+        }
+      ]
+    },
+    {
+      "curriculum_id": "yGGLYSENM97GC0A3",
+      "courses": [
+        {
+          "course_id": "hFUhTu8WIEeQEQ3i",
+          "n_periods": 4
+        },
+        {
+          "course_id": "YlFH40I1LBgH9vEI",
+          "n_periods": 6
+        },
+        {
+          "course_id": "jWtVT6TsTjz0lFQb",
+          "n_periods": 6
+        },
+        {
+          "course_id": "BbjRKtortAflVFLL",
+          "n_periods": 6
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "course_id": "hFUhTu8WIEeQEQ3i",
+      "day": 2,
+      "intervals": [
+        {
+          "start": 0,
+          "end": 4
+        },
+        {
+          "start": 6,
+          "end": 9
+        }
+      ]
+    },
+    {
+      "course_id": "hFUhTu8WIEeQEQ3i",
+      "day": 4,
+      "intervals": [
+        {
+          "start": 4,
+          "end": 9
+        }
+      ]
+    },
+    {
+      "course_id": "jWtVT6TsTjz0lFQb",
+      "day": 3,
+      "intervals": [
+        {
+          "start": 10,
+          "end": 14
+        },
+        {
+          "start": 16,
+          "end": 19
+        }
+      ]
+    }
+  ]
+}
