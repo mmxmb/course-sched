@@ -143,7 +143,7 @@ See more at [Authenticating service-to-service](https://cloud.google.com/run/doc
 
 ## Development
 
-# Initial setup
+### Initial setup
 
 It's best to use a virtual environment when installing dependencies for this project (e.g. `virtualenv`):
 
@@ -178,7 +178,7 @@ You can deactivate the virtual environment by entering `deactivate`.
 
 To remove the virtual environment, simply remove the directory `venv` that was created in step 2.
 
-## Environment variables
+### Environment variables
 
 Create `.env` file in the root with the following contents:
 
@@ -188,7 +188,7 @@ API_MAX_N_SOLUTIONS=999
 DAYS_PER_WEEK=5
 ```
 
-## Testing
+### Testing
 
 `unittest` is used for testing. Run tests using:
 
@@ -196,9 +196,9 @@ DAYS_PER_WEEK=5
 make test
 ```
 
-## Running the application
+### Running the application
 
-### Command line
+#### Command line
 
 Run the command-line version of the scheduler using:
 
