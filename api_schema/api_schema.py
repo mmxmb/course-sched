@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PERIODS_RANGE = range(int(os.getenv('PERIODS_PER_DAY')))
-MAX_SOLS = int(os.getenv('API_MAX_N_SOLUTIONS'))
-DAYS_RANGE = range(int(os.getenv('DAYS_PER_WEEK')))
+PERIODS_RANGE = range(int(os.environ.get('PERIODS_PER_DAY', 26)))
+MAX_SOLS = int(os.environ.get('API_MAX_N_SOLUTIONS', 999))
+DAYS_RANGE = range(int(os.environ.get('DAYS_PER_WEEK', 5)))
 WEEK_N_PERIODS = (4, 6)
 DAY_N_PERIODS = (2, 3, 4, 6)
 

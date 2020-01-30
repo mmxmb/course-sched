@@ -541,7 +541,7 @@ class CourseSched:
 def main():
 
     n_periods = 8  # real day has os.getenv("PERIODS_PER_DAY") periods
-    n_days = int(os.getenv("DAYS_PER_WEEK"))
+    n_days = int(os.environ.get("DAYS_PER_WEEK", 5))
     
     c1 = Course("0UoeRGKWlpKzZgs7", 6)
     c2 = Course("FQJSAdpeIy9rJU1H", 6) 

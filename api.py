@@ -22,8 +22,8 @@ class Version(Resource):
 
 class Scheduler(Resource):
     def post(self):
-        periods_per_day = int(os.getenv("PERIODS_PER_DAY")) 
-        n_days = int(os.getenv("DAYS_PER_WEEK"))
+        periods_per_day = int(os.environ.get("PERIODS_PER_DAY", 26)) 
+        n_days = int(os.environ.get("DAYS_PER_WEEK", 5))
         validated = request_schema.validate(request.json)
          
         # for item in request.json:
