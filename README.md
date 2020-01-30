@@ -15,7 +15,7 @@ The service API can be invoked only by authenticated users. Here are some strate
 
 ### Using course scheduling API locally 
 
-(####Using-Docker-image)
+#### Using Docker image
 
 1. Ensure that you have [gcloud](https://cloud.google.com/sdk/gcloud/) installed.
 2. Login: `gcloud auth login`
@@ -61,8 +61,8 @@ curl -i -X POST -H "Authorization: Bearer $(gcloud auth print-identity-token)" -
 ##### Using the cloned version of the repo
 
 1. Clone this repo.
-2. Follow the steps in [Development](##Development) section on initial setup, envvars and running API locally.
-3. Invoke API like in [Docker image case](####Using-Docker-image).
+2. Follow the steps in [Development](##-development) section on initial setup, envvars and running API locally.
+3. Invoke API like in [Docker image case](####-using-docker-image).
 
 ### Using course scheduling API in production 
 
@@ -83,22 +83,22 @@ const receivingServiceURL = 'https://course-sched-6jwajnedta-uc.a.run.app/sched'
 // See https://cloud.google.com/compute/docs/instances/verifying-instance-identity#request_signature
 const metadataServerTokenURL = 'http://metadata/computeMetadata/v1/instance/service-accounts/default/identity?audience=';
 const tokenRequestOptions = {
-		uri: metadataServerTokenURL + receivingServiceURL,
-		headers: {
-				'Metadata-Flavor': 'Google'
-		}
+  uri: metadataServerTokenURL + receivingServiceURL,
+  headers: {
+    'Metadata-Flavor': 'Google'
+  }
 };
 
 // Fetch the token, then provide the token in the request to the receiving service
 request(tokenRequestOptions)
-	.then((token) => {
-		return request(receivingServiceURL).auth(null, null, true, token)
-	})
-	.then((response) => {
-				console.log(response);
-	})
-	.catch((error) => {
-				console.log(error);
+  .then((token) => {
+    return request(receivingServiceURL).auth(null, null, true, token)
+  })
+  .then((response) => {
+    console.log(response);
+  })
+  .catch((error) => {
+    console.log(error);
 });
 ```
 
@@ -114,34 +114,34 @@ const receivingServiceURL = 'https://course-sched-6jwajnedta-uc.a.run.app/sched'
 // See https://cloud.google.com/compute/docs/instances/verifying-instance-identity#request_signature
 const metadataServerTokenURL = 'http://metadata/computeMetadata/v1/instance/service-accounts/default/identity?audience=';
 const tokenRequestOptions = {
-		uri: metadataServerTokenURL + receivingServiceURL,
-		headers: {
-				'Metadata-Flavor': 'Google'
-		}
+  uri: metadataServerTokenURL + receivingServiceURL,
+  headers: {
+    'Metadata-Flavor': 'Google'
+  }
 };
 
 // Fetch the token, then provide the token in the request to the receiving service
 request(tokenRequestOptions)
-	.then((token) => {
-		const options = {
-				method: 'POST',
-				uri: receivingServiceURL,
-				body: JSON.parse(fs.readFileSync('example_request.json', 'utf8')),
-				json: true
-		};
-		return request(options).auth(null, null, true, token)
-	})
-	.then((response) => {
-				console.log(response);
-	})
-	.catch((error) => {
-				console.log(error);
+  .then((token) => {
+    const options = {
+      method: 'POST',
+      uri: receivingServiceURL,
+      body: JSON.parse(fs.readFileSync('example_request.json', 'utf8')),
+      json: true
+    };
+    return request(options).auth(null, null, true, token)
+  })
+  .then((response) => {
+    console.log(response);
+  })
+  .catch((error) => {
+    console.log(error);
 });
 ```
 
 See more at [Authenticating service-to-service](https://cloud.google.com/run/docs/authenticating/service-to-service).
 
-(##Development)
+## Development
 
 # Initial setup
 
