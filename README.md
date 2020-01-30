@@ -35,7 +35,7 @@ curl localhost:9090/version
 `/sched` endpoint:
 
 ```
-curl -X POST -H "Content-type: application/json" --data "@api_schema/example_request.json" localhost:9090/sched
+curl -X POST -H "Content-type: application/json" --data "@examples/example_sched_request.json" localhost:9090/sched
 ```
 
 #### Using gcloud command line tool
