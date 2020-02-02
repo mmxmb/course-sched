@@ -126,7 +126,7 @@ request(tokenRequestOptions)
     const options = {
       method: 'POST',
       uri: receivingServiceURL,
-      body: JSON.parse(fs.readFileSync('example_request.json', 'utf8')),
+      body: JSON.parse(fs.readFileSync('examples/example_sched_request.json', 'utf8')),
       json: true
     };
     return request(options).auth(null, null, true, token)
