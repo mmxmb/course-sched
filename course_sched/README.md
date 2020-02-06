@@ -2,6 +2,8 @@
 
 The scheduler uses CP-SAT solver from OR-Tools Python package. Using the solver allows us to avoid thinking about the heuristics of searching for the feasible/optimal schedule, and focus on constraints and scoring criteria for the feasible/optimal schedule that the scheduler outputs.
 
+Once the variables representing the search space and constraints on those variables are defined, we can use the CP-SAT solver to find the solution heuristically.
+
 ## Model variables
 
 The most important part of the scheduler is CP-SAT model ([CPModel](https://developers.google.com/optimization/reference/python/sat/python/cp_model#cpmodel)) and its model variables. See more on the basics of CP-SAT model [here](https://developers.google.com/optimization/cp/cp_solver). All model variables can be thought of as a 3D space representing possible schedules. The axes of this space are:
@@ -37,7 +39,7 @@ The most simple form of constrain is a bounded linear expression of [the followi
 For instance, if we want to ensure that each course has exactly 5 periods scheduled every week, we can add the following constraint (see `add_course_len_constraints` in code for more accurate example):
 
 ```python
-model.Add(sum([duration variables for every day of the week for a specific course
+model.Add(sum([duration vars for every day of the week for a specific course
 ) == 5)
 ```
 
@@ -98,7 +100,6 @@ model.AddBoolAnd([bool_c, bool_xor])
 
 ### Initialization
 
-```
 Before running the solver, the course scheduler needs to be initialized (this process, for the most part, consists of creating model variables):
 
 ```python
