@@ -39,8 +39,7 @@ The most simple form of constrain is a bounded linear expression of [the followi
 For instance, if we want to ensure that each course has exactly 5 periods scheduled every week, we can add the following constraint (see `add_course_len_constraints` in code for more accurate example):
 
 ```python
-model.Add(sum([duration vars for every day of the week for a specific course
-) == 5)
+model.Add(sum([duration vars for every day of the week for a specific course) == 5)
 ```
 
 ### No overlap
