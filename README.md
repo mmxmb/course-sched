@@ -143,6 +143,8 @@ See more at [Authenticating service-to-service](https://cloud.google.com/run/doc
 
 ## Development
 
+See [course scheduler documentation](course_sched/README.md) to learn how the scheduler works.
+
 ### Initial setup
 
 It's best to use a virtual environment when installing dependencies for this project (e.g. `virtualenv`):
