@@ -44,7 +44,7 @@ model.Add(sum([duration vars for every day of the week for a specific course]) =
 
 ### No overlap
 
-The second type of constraints is [NoOverlap](https://developers.google.com/optimization/reference/python/sat/python/cp_model#addnooverlap) constraint. It is used exclusibely with interval variables to insure that intervals do not overlap with each other.
+The second type of constraints is [NoOverlap](https://developers.google.com/optimization/reference/python/sat/python/cp_model#addnooverlap) constraint. It is used exclusively with interval variables to insure that intervals do not overlap with each other.
 
 #### Example
 
