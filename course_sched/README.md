@@ -22,7 +22,7 @@ This structure implies that each course can have only one lecture per day. Since
 
 The diagram below visualizes the possible model state. This model assumes that there are 3 days a week, the courses are scheduled for 3 curricula and there are 3 courses per curricula. Notice that courses can be shared across curricula (e.g. course 0 is present in both curriculum 0 and 1; course 5 is present in both curriculum 1 and 2).
 
-![model vars diagram](course_sched/assets/sched_model_vars.png)
+![model vars diagram](assets/sched_model_vars.png)
 
 ## Constraints
 
