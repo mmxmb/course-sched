@@ -86,9 +86,9 @@ class SolverCallbackUtil(cp_model.CpSolverSolutionCallback):
         self._solution_count = 0
 
     def sol_to_str(self):
-        out = ["\n"]
+        out = []
         for d in range(self._n_days):
-            out.append(f"Day {d}")
+            out.append(f"\nDay {d}")
             for cur_id, cur in self._curricula.items():
                 out.append(f"Curriculum {cur_id}")
                 period_strs = [None] * self._n_periods
@@ -124,11 +124,13 @@ class SchedPartialSolutionPrinter(SolverCallbackUtil):
 
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
-            print(f'Solution {self._solution_count}')
+            print(f'\nSolution {self._solution_count}')
+            print(f'Objective: {self.ObjectiveValue()}')
             print(self.sol_to_str())
         else:
             self.StopSearch()
         self._solution_count += 1
+
 
 class SchedPartialSolutionSerializer(SolverCallbackUtil):
 
@@ -144,7 +146,7 @@ class SchedPartialSolutionSerializer(SolverCallbackUtil):
                  n_solutions: int):
         self.solutions = {"n_solutions": 0,
                           "solutions": []
-                         }
+                          }
         SolverCallbackUtil.__init__(
             self, model_vars, curricula, n_days, n_periods, n_solutions)
 
@@ -152,7 +154,7 @@ class SchedPartialSolutionSerializer(SolverCallbackUtil):
         solution = {'solution_id': str(self._solution_count),
                     'curricula': []}
         for cur_id, cur in self._curricula.items():
-            new_curriculum = {'curriculum_id': cur_id, 
+            new_curriculum = {'curriculum_id': cur_id,
                               'courses': []}
             solution['curricula'].append(new_curriculum)
             for c_id in cur.courses.keys():
@@ -161,12 +163,14 @@ class SchedPartialSolutionSerializer(SolverCallbackUtil):
                 solution['curricula'][-1]['courses'].append(new_course)
                 for d in range(self._n_days):
                     start = self.Value(self._model_vars[cur_id, d, c_id].start)
-                    duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                    duration = self.Value(
+                        self._model_vars[cur_id, d, c_id].duration)
                     if duration:
                         day_sched = {'day': d,
                                      'start': start,
                                      'duration': duration}
-                        solution['curricula'][-1]['courses'][-1]['schedule'].append(day_sched)
+                        solution['curricula'][-1]['courses'][-1]['schedule'].append(
+                            day_sched)
         self.solutions["solutions"].append(solution)
         self.solutions["n_solutions"] += 1
 
@@ -202,12 +206,15 @@ class CourseSched:
         self.n_days = n_days             # num of days per week
         self.n_periods = n_periods       # num 30-min periods per day
         self.model = cp_model.CpModel()
-        self.model_vars = {} # defined in _init_model_vars()
+        self.model_vars = {}  # defined in _init_model_vars()
         self.cur_day_to_intervals = collections.defaultdict(list)
         self.course_to_curricula = collections.defaultdict(list)
         self.curricula = {}  # mapping from curriculum id to `Curriculum`
         self._init_model_vars(curricula)  # initializes model vars
-        self.solver = None # defined in solve()
+        self.solver = None  # defined in solve()
+        self.obj_int_vars = []
+        self.obj_int_coeffs = []
+        self.is_optimization = False  # optimize using soft constraints or search all feasible
 
     def _add_curricula(self, curricula: List[Curriculum]):
         """ Creates mapping from curricula ids to corresponding curricula.
@@ -514,6 +521,60 @@ class CourseSched:
                                        conjunction_b,
                                        conjunction_c])
 
+    def add_soft_start_time_constraints(self, soft_min: int,
+                                        soft_max: int,
+                                        max_cost: int,
+                                        min_cost: int):
+        """ Add soft constraints on how early the first class of the day takes place and
+            how late the last class finishes.
+
+            Create delta variables (diff between class start and soft constrain value)
+            and their coefficients.
+        """
+        assert min_cost >= 0 and min_cost < self.n_periods
+        assert max_cost >= 0 and max_cost < self.n_periods
+
+        self.is_optimization = True
+
+        prefix = 'soft_start_end'
+
+        for d in range(self.n_days):
+            for cur_id, cur in self.curricula.items():
+                for c_id, c in cur.courses.items():
+
+                    # penalize lectures that start too early
+                    delta = self.model.NewIntVar(-self.n_periods,
+                                                 self.n_periods, '')
+                    start = self.model_vars[cur_id, d, c_id].start
+                    # delta is positive when lecture start time is < soft min
+                    self.model.Add(delta == soft_min - start)
+                    excess = self.model.NewIntVar(
+                        0, self.n_periods, prefix + '_under_sum')
+                    self.model.AddMaxEquality(excess, [delta, 0])
+                    self.obj_int_vars.append(excess)
+                    self.obj_int_coeffs.append(min_cost)
+
+                    # penalize lectures that start too late
+                    delta = self.model.NewIntVar(-self.n_periods,
+                                                 self.n_periods, '')
+                    # delta is positive when lecture start time is > soft max
+                    self.model.Add(delta == start - soft_max)
+                    excess = self.model.NewIntVar(
+                        0, self.n_periods, prefix + '_over_sum')
+                    self.model.AddMaxEquality(excess, [delta, 0])
+                    self.obj_int_vars.append(excess)
+                    self.obj_int_coeffs.append(max_cost)
+
+    def _set_objective(self):
+        """ Set objective of the model to minimize the sum of cost vars multiplied by
+            cost coefficients.
+        """
+        assert self.obj_int_vars and self.obj_int_coeffs
+        assert self.is_optimization
+        self.model.Minimize(
+            sum(self.obj_int_vars[i] * self.obj_int_coeffs[i]
+                for i in range(len(self.obj_int_vars))))
+
     def solve(self, callback: cp_model.CpSolverSolutionCallback,
               max_time: int = None):
         """ Create CP model solver and search for solutions for the model.
@@ -521,37 +582,39 @@ class CourseSched:
             `max_time`: solution search timeout in seconds
         """
         self.solver = cp_model.CpSolver()
+        self.solver.parameters.linearization_level = 0
         if max_time:
             self.solver.parameters.max_time_in_seconds = max_time
-        self.solver.parameters.linearization_level = 0
-
-        self.solver.SearchForAllSolutions(self.model, callback)
+        if self.is_optimization:
+            self.solver.parameters.num_search_workers = 8
+            self._set_objective()
+            self.solver.SolveWithSolutionCallback(self.model, callback)
+        else:
+            self.solver.SearchForAllSolutions(self.model, callback)
 
     def print_statistics(self, callback: cp_model.CpSolverSolutionCallback):
         """ Print solution statistics.
         """
         assert self.solver
+        print()
         print('Statistics')
-        print(f'  - conflicts       : {self.solver.NumConflicts()}')
-        print(f'  - branches        : {self.solver.NumBranches()}')
-        print(f'  - wall time       : {self.solver.WallTime()} s')
-        print(f'  - solutions found : {callback.solution_count()}')
+        print(f'Optimal solution: {self.solver.ResponseStats()}')
 
 
 def main():
 
-    n_periods = 8  # real day has os.getenv("PERIODS_PER_DAY") periods
+    n_periods = 26  # real day has os.getenv("PERIODS_PER_DAY") periods
     n_days = int(os.environ.get("DAYS_PER_WEEK", 5))
-    
+
     c1 = Course("0UoeRGKWlpKzZgs7", 6)
-    c2 = Course("FQJSAdpeIy9rJU1H", 6) 
-    c3 = Course("8sMA05cToLsEKB3y", 4) 
-    c4 = Course("BbjRKtortAflVFLL", 6) 
+    c2 = Course("FQJSAdpeIy9rJU1H", 6)
+    c3 = Course("8sMA05cToLsEKB3y", 4)
+    c4 = Course("BbjRKtortAflVFLL", 6)
     courses0 = [c1, c2, c3, c4]
 
     c5 = Course("hFUhTu8WIEeQEQ3i", 4)
-    c6 = Course("YlFH40I1LBgH9vEI", 6) 
-    c7 = Course("jWtVT6TsTjz0lFQb", 6) 
+    c6 = Course("YlFH40I1LBgH9vEI", 6)
+    c7 = Course("jWtVT6TsTjz0lFQb", 6)
     courses1 = [c4, c5, c6, c7]
 
     cur0 = Curriculum("hXkY1ChCPUcdRMbz", courses0)
@@ -565,37 +628,24 @@ def main():
     sched.add_sync_across_curricula_constraints()
     sched.add_lecture_symmetry_constraints()
 
-    sched.add_unavailability_constraints("hFUhTu8WIEeQEQ3i", 2, [(0, 4), (6, 9)])
+    sched.add_unavailability_constraints(
+        "hFUhTu8WIEeQEQ3i", 2, [(0, 4), (6, 9)])
     sched.add_unavailability_constraints("hFUhTu8WIEeQEQ3i", 4, [(4, 9)])
-    sched.add_unavailability_constraints("jWtVT6TsTjz0lFQb", 3, [(10, 14), (16, 19)])
-    # sched.add_unavailability_constraints(3, 1, [(3, 5)])
-    # sched.add_unavailability_constraints(4, 1, [(3, 5)])
+    sched.add_unavailability_constraints(
+        "jWtVT6TsTjz0lFQb", 3, [(10, 14), (16, 19)])
 
-    # sched.add_unavailability_constraints(0, 3, [(3, 5)])
-    # sched.add_unavailability_constraints(1, 3, [(3, 5)])
-    # sched.add_unavailability_constraints(2, 3, [(3, 5)])
-    # sched.add_unavailability_constraints(3, 3, [(3, 5)])
-    # sched.add_unavailability_constraints(4, 3, [(3, 5)])
-    # sched.add_unavailability_constraints(3, 1, [(0, 7)])
-    # sched.add_unavailability_constraints(1, 0, [(0, 7)])
-    # sched.add_unavailability_constraints(1, 1, [(2, 7)])
-    # sched.add_unavailability_constraints(1, 2, [(2, 7)])
+    # penalize classes that start earlier than 10:30 (4) or later than 17:00 (17)
+    # penalize early classes twice as much as late ones
+    sched.add_soft_start_time_constraints(4, 17, 2, 1)
 
-    n_solutions = 2
+    n_solutions = 1000  # this is ignored for optimization problems
 
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions)
-    # solution_printer = SchedPartialSolutionSerializer(sched.model_vars,
-                                                   # sched.curricula,
-                                                   # sched.n_days,
-                                                   # sched.n_periods,
-                                                   # n_solutions)
-
     sched.solve(solution_printer)
-    # print(solution_printer.solutions)
     sched.print_statistics(solution_printer)
 
 
