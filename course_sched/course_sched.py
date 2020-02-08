@@ -84,6 +84,7 @@ class SolverCallbackUtil(cp_model.CpSolverSolutionCallback):
         self._n_periods = n_periods
         self._solutions = set(range(n_solutions))
         self._solution_count = 0
+        self._objective = None
 
     def sol_to_str(self):
         out = []
@@ -107,6 +108,9 @@ class SolverCallbackUtil(cp_model.CpSolverSolutionCallback):
     def solution_count(self):
         return self._solution_count
 
+    def set_objective(self, obj: ModelVar):
+        self._objective = obj
+
 
 class SchedPartialSolutionPrinter(SolverCallbackUtil):
 
@@ -125,7 +129,10 @@ class SchedPartialSolutionPrinter(SolverCallbackUtil):
     def on_solution_callback(self):
         if self._solution_count in self._solutions:
             print(f'\nSolution {self._solution_count}')
-            print(f'Objective: {self.ObjectiveValue()}')
+            if self._objective:
+                print(f'Objective: {self.Value(self._objective)}')
+            else:
+                print(f'Objective: {self.ObjectiveValue()}')
             print(self.sol_to_str())
         else:
             self.StopSearch()
@@ -215,6 +222,7 @@ class CourseSched:
         self.obj_int_vars = []
         self.obj_int_coeffs = []
         self.is_optimization = False  # optimize using soft constraints or search all feasible
+        self.obj = None
 
     def _add_curricula(self, curricula: List[Curriculum]):
         """ Creates mapping from curricula ids to corresponding curricula.
@@ -565,32 +573,70 @@ class CourseSched:
                     self.obj_int_vars.append(excess)
                     self.obj_int_coeffs.append(max_cost)
 
-    def _set_objective(self):
+
+    def _set_obj(self):
         """ Set objective of the model to minimize the sum of cost vars multiplied by
             cost coefficients.
         """
         assert self.obj_int_vars and self.obj_int_coeffs
         assert self.is_optimization
-        self.model.Minimize(
-            sum(self.obj_int_vars[i] * self.obj_int_coeffs[i]
-                for i in range(len(self.obj_int_vars))))
+                             # for i in range(len(self.obj_int_vars)))
+        self.obj = cp_model.LinearExpr.ScalProd(self.obj_int_vars, self.obj_int_coeffs)
+        self.model.Minimize(self.obj)
+
+
+    def _unset_obj(self):
+        """ Unset the objective so that we can use solver.SearchForAllSolutions.
+        """
+        assert self.obj
+        self.model.Proto().ClearField('objective')
+
+
+    def _add_obj_bound_proximity_constraint(self, delta: int):
+        """ Add a constraint such that all solutions must
+            have objective function value that is "close" to
+            the best objective function value (i.e. objective bound).
+
+            To achieve this, we first need to find the objective bound.
+
+            We then add a constraint such that the value of the model objective
+            is within some delta of the objective bound.
+
+        """
+        assert self.solver
+
+        # find the objective bound (best solution objective value)
+        self._set_obj() # set model minimization objective
+        self.solver.parameters.num_search_workers = 8 # speed up this search
+        self.solver.Solve(self.model) 
+        obj_bound = int(self.solver.BestObjectiveBound()) # get objective bound
+        self._unset_obj() # unset model minimization objective
+        
+        # add objective bound constraint
+        self.model.Add(self.obj <= obj_bound + delta)
+
 
     def solve(self, callback: cp_model.CpSolverSolutionCallback,
-              max_time: int = None):
+              max_time: int = None,
+              obj_proximity_delta: int = 0):
         """ Create CP model solver and search for solutions for the model.
             `callback`: a class implementing `cp_model.CpSolverSolutionCallback`
             `max_time`: solution search timeout in seconds
+            `obj_proximity_delta`: used if this is an optimization problem;
+                                   allows to search for all solutions that
+                                   have objective value that are within this
+                                   delta of the best possible objective value.
         """
         self.solver = cp_model.CpSolver()
         self.solver.parameters.linearization_level = 0
         if max_time:
             self.solver.parameters.max_time_in_seconds = max_time
         if self.is_optimization:
-            self.solver.parameters.num_search_workers = 8
-            self._set_objective()
-            self.solver.SolveWithSolutionCallback(self.model, callback)
-        else:
-            self.solver.SearchForAllSolutions(self.model, callback)
+            self._add_obj_bound_proximity_constraint(obj_proximity_delta)
+            callback.set_objective(self.obj) # add objective value to callback
+        self.solver.parameters.num_search_workers = 1 # search for all can use only 1
+        self.solver.SearchForAllSolutions(self.model, callback)
+
 
     def print_statistics(self, callback: cp_model.CpSolverSolutionCallback):
         """ Print solution statistics.
@@ -638,14 +684,14 @@ def main():
     # penalize early classes twice as much as late ones
     sched.add_soft_start_time_constraints(4, 17, 2, 1)
 
-    n_solutions = 1000  # this is ignored for optimization problems
+    n_solutions = 100 
 
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions)
-    sched.solve(solution_printer)
+    sched.solve(solution_printer, obj_proximity_delta=10)
     sched.print_statistics(solution_printer)
 
 
