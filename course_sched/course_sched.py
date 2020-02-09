@@ -609,7 +609,7 @@ class CourseSched:
         self._set_obj() # set model minimization objective
         self.solver.parameters.num_search_workers = 8 # speed up this search
         self.solver.Solve(self.model) 
-        obj_bound = int(self.solver.BestObjectiveBound()) # get objective bound
+        obj_bound = round(self.solver.BestObjectiveBound()) # get objective bound
         self._unset_obj() # unset model minimization objective
         
         # add objective bound constraint
