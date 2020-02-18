@@ -1,0 +1,186 @@
+{
+  "n_solutions": 10,
+  "curricula": [
+    {
+      "curriculum_id": "2nd year Software Engineering",
+      "courses": [
+        {
+          "course_id": "MATH1090",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2011",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2021",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2030",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2032",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2311",
+          "n_periods": 6
+        },
+        {
+          "course_id": "ENG2003",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2015",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2930",
+          "n_periods": 6
+        },
+        {
+          "course_id": "PHYS2211",
+          "n_periods": 6
+        }
+      ]
+    },
+    {
+      "curriculum_id": "2nd year Electrical Engineering",
+      "courses": [
+        {
+          "course_id": "EECS2602",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2210",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2021",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2030",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2032",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2311",
+          "n_periods": 6
+        },
+        {
+          "course_id": "ENG2003",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2015",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2930",
+          "n_periods": 6
+        },
+        {
+          "course_id": "PHYS2211",
+          "n_periods": 6
+        }
+      ]
+    },
+		{
+      "curriculum_id": "2nd year Computer Engineering",
+      "courses": [
+        {
+          "course_id": "EECS2011",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2021",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2030",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2032",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2200",
+          "n_periods": 6
+        },
+        {
+          "course_id": "EECS2210",
+          "n_periods": 6
+        },
+        {
+          "course_id": "ENG2003",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH1090",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2015",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2930",
+          "n_periods": 6
+        },
+        {
+          "course_id": "PHYS2211",
+          "n_periods": 6
+        }
+      ]
+    },
+		{
+      "curriculum_id": "2nd year Civil Engineering",
+      "courses": [
+        {
+          "course_id": "CIVL2000",
+          "n_periods": 4
+        },
+        {
+          "course_id": "CIVL2000-tutorial",
+          "n_periods": 6
+        },
+        {
+          "course_id": "CIVL2210",
+          "n_periods": 6
+        },
+        {
+          "course_id": "CIVL2220",
+          "n_periods": 6
+        },
+        {
+          "course_id": "CIVL2240",
+          "n_periods": 6
+        },
+        {
+          "course_id": "ENG2003",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2015",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2930",
+          "n_periods": 6
+        },
+        {
+          "course_id": "MATH2270",
+          "n_periods": 6
+        }
+      ]
+    }
+  ],
+  "constraints": []
+}
