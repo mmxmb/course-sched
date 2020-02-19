@@ -1,7 +1,12 @@
 import unittest
-from course_sched import CourseSched,  COURSE_GRANULARITY
-from custom_types import Course, Curriculum
-from callbacks import SolverCallbackUtil, SchedPartialSolutionSerializer
+from course_sched import (
+        CourseSched,
+        COURSE_GRANULARITY,
+        Course,
+        Curriculum,
+        SolverCallbackUtil, 
+        SchedPartialSolutionSerializer
+        )
 import os
 import sys
 from schema import SchemaError

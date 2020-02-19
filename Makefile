@@ -7,6 +7,7 @@ run-api:
 test:
 	python course_sched/test_course_sched.py 
 	python api_schema/test_api_schema.py
+	python test_api.py
 
 freeze:
 	pip freeze > requirements.txt
