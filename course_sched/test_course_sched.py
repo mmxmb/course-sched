@@ -1,11 +1,15 @@
 import unittest
-from course_sched import CourseSched, Course, Curriculum, SolverCallbackUtil, COURSE_GRANULARITY, SchedPartialSolutionSerializer
+from course_sched import CourseSched,  COURSE_GRANULARITY
+from custom_types import Course, Curriculum
+from callbacks import SolverCallbackUtil, SchedPartialSolutionSerializer
 import os
 import sys
+from schema import SchemaError
 sys.path.append(os.path.abspath('./api_schema'))
 from api_schema import response_schema
 
 N_SOL_PER_TEST = 100
+
 
 class TestSchedPeriodSumCallback(SolverCallbackUtil):
 
@@ -33,6 +37,7 @@ class TestSchedPeriodSumCallback(SolverCallbackUtil):
         else:
             self.StopSearch()
         self._solution_count += 1
+
 
 
 class TestSchedUnavailabilityConstraintsCallback(SolverCallbackUtil):
@@ -221,6 +226,7 @@ class TestLectureSymmetryCallback(SolverCallbackUtil):
             self.StopSearch()
         self._solution_count += 1
 
+
 class TestCourseSched(unittest.TestCase):
 
     def test_sched_periods_sum(self):
@@ -401,7 +407,6 @@ class TestCourseSched(unittest.TestCase):
         sched.add_no_overlap_constraints()
         sched.add_course_len_constraints()
         sched.add_lecture_len_constraints()
-
 
         serializer_callback = SchedPartialSolutionSerializer(sched.model_vars,
                                                              sched.curricula,
