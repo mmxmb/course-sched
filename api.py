@@ -19,7 +19,7 @@ api = Api(app)
 @app.errorhandler(400)
 def not_found(error):
     print(error) 
-    return make_response(jsonify( error=str(error) ), 400)  #return make_response(jsonify( { 'error': 'Not found' } ), 404)
+    return make_response(jsonify( error=str(error) ), 400)  
 
 @app.errorhandler(404)
 def not_found(error):
@@ -42,19 +42,10 @@ class Scheduler(Resource):
         if not request.json:
             abort(400 , description="Bad request ; request isn't json")
 
-       # If data is valid, Schema.validate will return the validated data (optionally converted with Use calls, see below).
-
-        #If data is invalid, Schema will raise SchemaError exception. If you just want to check that the data is valid, schema.is_valid(data) will return True or False.
         try:
             validated = request_schema.validate(request.json)
         except SchemaError:
             abort(400 , description="Bad request ; request Schema isn't valid")
-
-        #check if validated data is actually validated
-        # if not schema.is_valid(validated):
-          #  abort(400)
-
-
          
         # for item in request.json:
         n_solutions = validated['n_solutions']
@@ -98,10 +89,6 @@ class Scheduler(Resource):
         sched.add_lecture_len_constraints()
         sched.add_sync_across_curricula_constraints()
         sched.add_lecture_symmetry_constraints()
-
-        
-        # suido code: if same course id in constraints, that's ok but same course id and same day should give an error. all same day contraints should be 
-        #             in interval tuples.
         
         D_course_day = {}   # dictionary of course ids as keys and days as values.
 
@@ -109,12 +96,7 @@ class Scheduler(Resource):
             course_id = const['course_id']
             day = const['day']
             intervals = const['intervals']
-            L_intervals = []
-
-            # validation: same course same day
-            #if course_id in D_constraints_courses and day == D_constraints_courses.get(course_id):
-            #    abort(400)
-            #D_constraints_courses.update(course_id = day) # not sure if this is the legal arguments to update a dictionary 
+            L_intervals = [] 
             
             for key , value in D_course_day.items():
                 if course_id in D_course_day and value == day:
