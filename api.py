@@ -50,7 +50,12 @@ class Scheduler(Resource):
         # for item in request.json:
         n_solutions = validated['n_solutions']
         curricula = validated['curricula']
-        constraints = validated['constraints']
+
+        if 'constraints' in validated:
+            constraints = validated['constraints']
+        else:
+            constraints = []
+
         L_curriculums = []
 
         Cuids = set()
