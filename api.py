@@ -11,15 +11,19 @@ from api_schema.api_schema import request_schema
 from course_sched.course_sched import CourseSched, Course, Curriculum, SchedPartialSolutionSerializer
 
 
+from schema import SchemaError
+
 app = Flask(__name__)
 api = Api(app)
 
 @app.errorhandler(400)
 def not_found(error):
-    return make_response(jsonify( { 'error': 'Bad request' } ), 400)
+    print(error) 
+    return make_response(jsonify( error=str(error) ), 400)  #return make_response(jsonify( { 'error': 'Not found' } ), 404)
 
 @app.errorhandler(404)
 def not_found(error):
+    print(error)
     return make_response(jsonify( { 'error': 'Not found' } ), 404)
 
 class Version(Resource):
@@ -36,7 +40,7 @@ class Scheduler(Resource):
 
         # if request is not json, throw an error
         if not request.json:
-            abort(400)
+            abort(400 , description="Bad request ; request isn't json")
 
        # If data is valid, Schema.validate will return the validated data (optionally converted with Use calls, see below).
 
@@ -44,7 +48,7 @@ class Scheduler(Resource):
         try:
             validated = request_schema.validate(request.json)
         except SchemaError:
-            abort(400)
+            abort(400 , description="Bad request ; request Schema isn't valid")
 
         #check if validated data is actually validated
         # if not schema.is_valid(validated):
@@ -74,14 +78,14 @@ class Scheduler(Resource):
 
                 # validation: check for similar course ids
                 if course_id in Coids:
-                    abort(400)
+                    abort(400 , description="Bad request ; courses with identical ids in a curriculum")
                 Coids.add(course_id)    
 
                 L_courses.append(Course(course_id ,n_periods))  # calling the Course function in the course_sched class
         
             # validation: check for similar curriculum ids
             if curriculum_id in Cuids:
-                abort(400)
+                abort(400, description="Bad request ; curriculums with identical ids in a curricula")
             Cuids.add(curriculum_id)
 
             L_curriculums.append(Curriculum(curriculum_id, L_courses)) # calling the Curriculum function in the course_sched class
@@ -99,7 +103,7 @@ class Scheduler(Resource):
         # suido code: if same course id in constraints, that's ok but same course id and same day should give an error. all same day contraints should be 
         #             in interval tuples.
         
-        D_constraints_courses = {}   # dictionary of course ids as keys and days as values.
+        D_course_day = {}   # dictionary of course ids as keys and days as values.
 
         for const in constraints:
             course_id = const['course_id']
@@ -108,10 +112,14 @@ class Scheduler(Resource):
             L_intervals = []
 
             # validation: same course same day
-            if course_id in D_constraints_courses.keys() and day == D_constraints_courses['course_id']:
-                abort(400)
-            D_constraints_courses.update(course_id = day) # not sure if this is the legal arguments to update a dictionary 
-
+            #if course_id in D_constraints_courses and day == D_constraints_courses.get(course_id):
+            #    abort(400)
+            #D_constraints_courses.update(course_id = day) # not sure if this is the legal arguments to update a dictionary 
+            
+            for key , value in D_course_day.items():
+                if course_id in D_course_day and value == day:
+                    abort(400)
+                D_course_day.update(course_id = day)
 
             for inter in intervals:
                 start = inter['start']
