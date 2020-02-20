@@ -9,7 +9,7 @@ load_dotenv()
 
 from api_schema.api_schema import request_schema
 from course_sched.course_sched import CourseSched, Course, Curriculum, SchedPartialSolutionSerializer
-
+from api_util import *
 
 from schema import SchemaError
 
@@ -29,13 +29,13 @@ def not_found(error):
 class Version(Resource):
     def get(self):
         resp = {'name': 'course-sched',
-                'version': os.environ.get('VERSION', '1.0')}
+                'version': os.environ.get('VERSION', '1.1.0')}
         return jsonify(resp)
 
 
 class Scheduler(Resource):
     def post(self):
-        periods_per_day = int(os.environ.get("PERIODS_PER_DAY", 26)) 
+        periods_per_day = int(os.environ.get("PERIODS_PER_DAY", 27)) 
         n_days = int(os.environ.get("DAYS_PER_WEEK", 5))
 
         # if request is not json, throw an error
@@ -55,6 +55,17 @@ class Scheduler(Resource):
             constraints = validated['constraints']
         else:
             constraints = []
+
+        if 'course_locks' in validated:
+            course_locks = validated['course_locks']
+        else:
+            course_locks = []
+
+        if course_locks_contains_duplicates(course_locks):
+            abort(400 , description="Bad request ; duplicate courses in course_Locks")
+
+        if course_locks_and_constraints_overlap(course_locks, constraints):
+            abort(400 , description="Bad request ; course specified in both course_locks and constraints")
 
         L_curriculums = []
 
@@ -115,8 +126,8 @@ class Scheduler(Resource):
         
             sched.add_unavailability_constraints(course_id, day, L_intervals)
 
-
-
+        for course_lock in course_locks:
+            sched.add_course_lock(course_lock['course_id'], course_lock['locks'])
 
         # instantiate sched with class CourseSched 
 

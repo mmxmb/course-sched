@@ -1,16 +1,10 @@
 import unittest
-
-import os
-
-from schema import SchemaError
-
-from api_schema.api_schema import response_schema
-
-import json
-
-from api import app
 from unittest import TestCase
-
+import os
+from schema import SchemaError
+from api_schema.api_schema import response_schema
+import json
+from api import app
 import sys
 
 class TestIntegrations(TestCase):
@@ -68,7 +62,6 @@ class TestIntegrations(TestCase):
             json_response, 
             {'message': "Bad request ; request isn't json"}
         )       
-
 
 if __name__ == '__main__':
     unittest.main()

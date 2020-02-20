@@ -83,5 +83,57 @@
         }
       ]
     }
+  ],
+  "course_locks": [
+    {
+      "course_id": "0UoeRGKWlpKzZgs7",
+      "locks": [
+        {
+          "day": 0,
+          "duration": 2,
+          "start": 15 
+        },
+        {
+          "day": 2,
+          "duration": 2,
+          "start": 15 
+        },
+        {
+          "day": 4,
+          "duration": 2,
+          "start": 15 
+        }
+      ]
+    },
+    {
+      "course_id": "0UoeRGFLlpKzZgs7",
+      "locks": [
+        {
+          "day": 0,
+          "duration": 3,
+          "start": 20
+        },
+        {
+          "day": 2,
+          "duration": 3,
+          "start": 20
+        }
+      ]
+    },
+    {
+      "course_id": "8sMA05cToLsEKB3y",
+      "locks": [
+        {
+          "day": 1,
+          "duration": 2,
+          "start": 11 
+        },
+        {
+          "day": 3,
+          "duration": 2,
+          "start": 11 
+        }
+      ]
+    }
   ]
 }

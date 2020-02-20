@@ -102,7 +102,7 @@ model.AddBoolAnd([bool_c, bool_xor])
 Before running the solver, the course scheduler needs to be initialized (this process, for the most part, consists of creating model variables):
 
 ```python
-n_periods = 26  # 30-min increments in a 8:30 to 21:30 day
+n_periods = 27  # 30-min increments in a 8:30 to 21:30 day
 n_days = 5      # 5 working days per week
 
 # create courses for one curriculum
