@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PERIODS_RANGE = range(int(os.environ.get('PERIODS_PER_DAY', 26)))
+PERIODS_RANGE = range(int(os.environ.get('PERIODS_PER_DAY', 27)))
 MAX_SOLS = int(os.environ.get('API_MAX_N_SOLUTIONS', 999))
 DAYS_RANGE = range(int(os.environ.get('DAYS_PER_WEEK', 5)))
 WEEK_N_PERIODS = (4, 6)
@@ -39,11 +39,16 @@ _sched_curriculum_schema = Schema({'curriculum_id': And(str, len),
                                    'courses': And([_sched_course_schema], len)
                                    })
 
+_course_lock_schema = Schema({'course_id': And(str, len),
+                                 'locks': And([_day_sched_schema], len)
+                                 })
+
 request_schema = Schema({'n_solutions': And(Use(int),
                                             lambda n: 1 <= n <= MAX_SOLS),
                          'curricula': And([_curriculum_schema],
                                           len),
-                         Optional('constraints'): [_constraint_schema]})
+                         Optional('constraints'): [_constraint_schema],
+                         Optional('course_locks'): [_course_lock_schema]})
 
 response_schema = Schema({'n_solutions': And(Use(int), lambda n: 0 <= n <= MAX_SOLS),
                           'solutions': [

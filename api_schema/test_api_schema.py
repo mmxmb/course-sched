@@ -59,6 +59,16 @@ class TestApiRequestSchema(unittest.TestCase):
             constraint['intervals'][0]['day'] = -1
         self.assertRaises(SchemaError, request_schema.validate, self.payload)
 
+    def test_invalid_request_schema_invalid_lock1(self):
+        for course_lock in self.payload['course_locks']:
+            del course_lock['locks'][0]['day']
+        self.assertRaises(SchemaError, request_schema.validate, self.payload)
+
+    def test_invalid_request_schema_invalid_lock2(self):
+        for course_lock in self.payload['course_locks']:
+            del course_lock['course_id']
+        self.assertRaises(SchemaError, request_schema.validate, self.payload)
+
 
 class TestApiResponseSchema(unittest.TestCase):
 

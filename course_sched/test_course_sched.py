@@ -44,7 +44,6 @@ class TestSchedPeriodSumCallback(SolverCallbackUtil):
         self._solution_count += 1
 
 
-
 class TestSchedUnavailabilityConstraintsCallback(SolverCallbackUtil):
 
     def __init__(self, model_vars, curricula, n_days, n_periods, n_solutions):
@@ -60,14 +59,20 @@ class TestSchedUnavailabilityConstraintsCallback(SolverCallbackUtil):
             for cur_id, cur in self._curricula.items():
                 for c_id in cur.courses.keys():
                     for d in range(self._n_days):
+                        duration = self.Value(
+                            self._model_vars[cur_id, d, c_id].duration)
+                        start = self.Value(self._model_vars[cur_id, d, c_id].start)
+                        end = self.Value(self._model_vars[cur_id, d, c_id].end)
 
                         # course 3 can only happen on day 2
                         if c_id == 3:
                             if d == 2:
-                                duration = self.Value(
-                                    self._model_vars[cur_id, d, c_id].duration)
                                 if duration == 0:
                                     self.msg = "Course 3 has to take place on day 2"
+                                    self.success = False
+                                    self.StopSearch()
+                                if start != 3 or end != 8:
+                                    self.msg = "Course 3 has to take place on day 2 from 3 to 8"
                                     self.success = False
                                     self.StopSearch()
                             else:
@@ -81,12 +86,6 @@ class TestSchedUnavailabilityConstraintsCallback(SolverCallbackUtil):
                         # course 1 can only happen in the first two periods of
                         # days 1 and 2
                         elif c_id == 1:
-                            duration = self.Value(
-                                self._model_vars[cur_id, d, c_id].duration)
-                            start = self.Value(
-                                self._model_vars[cur_id, d, c_id].start)
-                            end = self.Value(
-                                self._model_vars[cur_id, d, c_id].end)
                             if d == 1:
                                 if duration == 0 or start != 0 or end != 2:
                                     self.msg = "Course 1 has to take place during periods 1 and 2 of day 1"
@@ -232,6 +231,49 @@ class TestLectureSymmetryCallback(SolverCallbackUtil):
         self._solution_count += 1
 
 
+class TestCourseLockCallback(SolverCallbackUtil):
+
+    def __init__(self, model_vars, curricula, n_days,
+                 n_periods, n_solutions):
+        SolverCallbackUtil.__init__(
+            self, model_vars, curricula, n_days, n_periods, n_solutions)
+        self.success = True
+        self.msg = ""
+        self._solution_count = 0
+
+    def on_solution_callback(self):
+        if self._solution_count in self._solutions:
+            for cur_id, cur in self._curricula.items():
+                for d in range(self._n_days):
+                    for c_id, c in cur.courses.items():
+                        if c_id == '0':
+                            course_0_start = self.Value(self._model_vars[cur_id, d, '0'].start)
+                            course_0_duration = self.Value(self._model_vars[cur_id, d, '0'].duration)
+                            if d in {0, 2, 4} and course_0_duration != 0:
+                                self.msg = f"Course 0 has to be scheduled on Tue and Thu"
+                                self.success = False
+                                self.StopSearch()
+                            elif d in {1, 3} and (course_0_start != 10 or course_0_duration != 3):
+                                self.msg = f"Course 0 has to be scheduled at period 10 for 3 periods"
+                                self.success = False
+                                self.StopSearch()
+                        if c_id == '4':
+                            course_4_start = self.Value(self._model_vars[cur_id, d, '4'].start)
+                            course_4_duration = self.Value(self._model_vars[cur_id, d, '4'].duration)
+                            if d in {1, 3} and course_4_duration != 0:
+                                self.msg = f"Course 4 has to be scheduled on Mon, Wed and Fri"
+                                self.success = False
+                                self.StopSearch()
+                            elif d in {0, 2, 4} and (course_4_start != 20 or course_4_duration != 2):
+                                self.msg = f"Course 4 has to be scheduled at period 20 for 2 periods"
+                                self.success = False
+                                self.StopSearch()
+
+        else:
+            self.StopSearch()
+        self._solution_count += 1
+
+
 class TestCourseSched(unittest.TestCase):
 
     def test_sched_periods_sum(self):
@@ -285,9 +327,10 @@ class TestCourseSched(unittest.TestCase):
         sched.add_course_len_constraints()
         sched.add_lecture_len_constraints()
 
-        # Course 3 can only happen on day 2
+        # Course 3 can only happen on day 2 from 3 to 8
         sched.add_unavailability_constraints('3', 0, [(0, 9)])
         sched.add_unavailability_constraints('3', 1, [(0, 9)])
+        sched.add_unavailability_constraints('3', 2, [(0, 2)])
 
         # Course 1 can only happen in the first two periods of days 1 and 2
         sched.add_unavailability_constraints('1', 0, [(0, 9)])
@@ -301,8 +344,12 @@ class TestCourseSched(unittest.TestCase):
                                                                    N_SOL_PER_TEST)
 
         sched.solve(test_callback)
-        test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
-        self.assertTrue(test_callback.success, msg=test_msg)
+        if test_callback._solution_count:
+            test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
+            self.assertTrue(test_callback.success, msg=test_msg)
+        else:
+            self.fail("Expected to find some solutions")
+
 
     def test_lecture_len_constraint(self):
         """ Lecture lengths must be 2, 3 or 6.
@@ -425,6 +472,46 @@ class TestCourseSched(unittest.TestCase):
             response_schema.validate(solutions)
         except SchemaError as e:
             self.fail(f"Schema validation error: {e}")
+
+    def test_course_lock(self):
+        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        courses0 = [c0, c1, c2, c3]
+        courses1 = [c4, c5, c6, c7]
+        cur0 = Curriculum('0', courses0)
+        cur1 = Curriculum('1', courses1)
+        curricula = [cur0, cur1]
+        n_days = 5
+        n_periods = 27
+
+        sched = CourseSched(n_days, n_periods, curricula)
+        sched.add_no_overlap_constraints()
+        sched.add_course_len_constraints()
+        sched.add_lecture_len_constraints()
+        sched.add_sync_across_curricula_constraints()
+        sched.add_lecture_symmetry_constraints()
+        course_0_lock = [
+                {'day': 1, 'duration': 3, 'start': 10},
+                {'day': 3, 'duration': 3, 'start': 10}]
+        course_4_lock = [
+                {'day': 0, 'duration': 2, 'start': 20},
+                {'day': 2, 'duration': 2, 'start': 20},
+                {'day': 4, 'duration': 2, 'start': 20}]
+        sched.add_course_lock('0', course_0_lock)
+        sched.add_course_lock('4', course_4_lock)
+
+        test_callback = TestCourseLockCallback(sched.model_vars,
+                                                sched.curricula,
+                                                sched.n_days,
+                                                sched.n_periods,
+                                                N_SOL_PER_TEST)
+
+        sched.solve(test_callback)
+        if test_callback._solution_count:
+            test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
+            self.assertTrue(test_callback.success, msg=test_msg)
+        else:
+            self.fail("Expected to find some solutions")
 
 if __name__ == '__main__':
     unittest.main()

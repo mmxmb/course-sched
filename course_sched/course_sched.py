@@ -345,6 +345,8 @@ class CourseSched:
             self, c_id: str, day: int, intervals: List[Interval]):
         """ Marks certain `intervals` of a particular `day` unavailable for scheduling for a
             particular course (identified by `c_id`).
+
+            Intervals are inclusive.
         """
         assert c_id in self.course_to_curricula  # check that course id exists
         interval_vars = []
@@ -353,13 +355,46 @@ class CourseSched:
             start, end = interval
             suffix = f'_d{day}c{c_id}interval-{start}_{end}'
             interval_var = self.model.NewIntervalVar(
-                start, end - start, end, 'unavail_interval' + suffix)
+                start, end - start + 1, end + 1, 'unavail_interval' + suffix)
             interval_vars.append(interval_var)
 
         for cur_id in self.course_to_curricula[c_id]:
             interval_vars.append(self.model_vars[cur_id, day, c_id].interval)
 
         self.model.AddNoOverlap(interval_vars)
+
+
+    def _invert_interval(self, interval: Interval) -> List[Interval]:
+        """ Return all intervals outside of the input interval.
+            
+            E.g. (3, 6) -> [(0, 2), (7, 26)]
+                (24, 26) -> [(0, 23)]
+        """ 
+        last_period = self.n_periods - 1
+        start, end = interval
+        intervals = []
+        if start == 0:
+            intervals.append((end + 1, last_period))
+        elif end == last_period:
+            intervals.append((0, start - 1))
+        else:
+            intervals.append((0, start - 1))
+            intervals.append((end + 1, last_period))
+        return intervals
+
+
+    def add_course_lock(self, c_id: int, locks: List[Dict]):
+        """ Ensure that a course is scheduled at a specific time with no exceptions.
+        """
+        days_without_lock = {x for x in range(self.n_days)}
+        for day_lock in locks: 
+            day = day_lock['day']
+            interval = day_lock['start'], day_lock['start'] + day_lock['duration'] - 1
+            self.add_unavailability_constraints(c_id, day, self._invert_interval(interval))
+            days_without_lock.remove(day)
+        for day in days_without_lock:
+            self.add_unavailability_constraints(c_id, day, [(0, self.n_periods - 1)])
+
 
     def add_lecture_len_constraints(self):
         """ Ensures that each course takes up consecutive number of periods per day:
@@ -649,7 +684,7 @@ class CourseSched:
 
 def main():
 
-    n_periods = 26  # real day has os.getenv("PERIODS_PER_DAY") periods
+    n_periods = 27  # real day has os.getenv("PERIODS_PER_DAY") periods
     n_days = int(os.environ.get("DAYS_PER_WEEK", 5))
 
     c1 = Course("0UoeRGKWlpKzZgs7", 6)

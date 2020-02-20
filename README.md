@@ -185,7 +185,7 @@ To remove the virtual environment, simply remove the directory `venv` that was c
 Create `.env` file in the root with the following contents:
 
 ```
-PERIODS_PER_DAY=26
+PERIODS_PER_DAY=27
 API_MAX_N_SOLUTIONS=999
 DAYS_PER_WEEK=5
 ```
