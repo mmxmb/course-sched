@@ -529,7 +529,7 @@ class CourseSched:
                                        conjunction_b,
                                        conjunction_c])
 
-    def add_soft_start_time_constraints(self, soft_min: int,
+    def add_soft_start_end_time_constraints(self, soft_min: int,
                                         soft_max: int,
                                         max_cost: int,
                                         min_cost: int):
@@ -539,8 +539,10 @@ class CourseSched:
             Create delta variables (diff between class start and soft constrain value)
             and their coefficients.
         """
-        assert min_cost >= 0 and min_cost < self.n_periods
-        assert max_cost >= 0 and max_cost < self.n_periods
+        assert soft_min >= 0 and soft_min < self.n_periods
+        assert soft_max >= 0 and soft_max < self.n_periods
+        assert max_cost > 0 and min_cost > 0
+        assert soft_min < soft_max
 
         self.is_optimization = True
 
@@ -572,6 +574,35 @@ class CourseSched:
                     self.model.AddMaxEquality(excess, [delta, 0])
                     self.obj_int_vars.append(excess)
                     self.obj_int_coeffs.append(max_cost)
+
+
+    def add_soft_break_time_constraint(self, break_min: int,
+                                            break_max: int,
+                                            break_duration: int,
+                                            cost: int):
+        """ Add soft constraint related to having some break time
+            (i.e. time with no courses scheduled) during designated
+            break time interval.
+
+            E.g. we want to have at least 1 hr long break during 
+            lunch time from 11:30AM to 2PM. Therefore, if a curriculum
+            doesn't have a contiguous 1 hr interval that is free from
+            courses between 11:30AM and 2PM, then this schedule gets
+            penalized.
+        """
+        assert break_min >= 0 and break_min < self.n_periods
+        assert break_max >= 0 and break_max < self.n_periods
+        assert break_max < break_min
+        assert cost > 0
+        assert break_duration <= break_max - break_min
+
+        self.is_optimization = True
+
+        prefix = 'soft_break_time'
+
+        for d in range(self.n_days):
+            for cur_id, cur in self.curricula.items():
+                pass # TODO
 
 
     def _set_obj(self):
@@ -682,7 +713,7 @@ def main():
 
     # penalize classes that start earlier than 10:30 (4) or later than 17:00 (17)
     # penalize early classes twice as much as late ones
-    sched.add_soft_start_time_constraints(4, 17, 2, 1)
+    sched.add_soft_start_end_time_constraints(4, 17, 2, 1)
 
     n_solutions = 100 
 
