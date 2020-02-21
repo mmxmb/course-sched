@@ -573,6 +573,77 @@ class CourseSched:
                     self.obj_int_vars.append(excess)
                     self.obj_int_coeffs.append(max_cost)
 
+    def add_soft_total_time_constraints(self, soft_min: int,
+                                        soft_max: int,
+                                        max_cost: int,
+                                        min_cost: int):
+
+        assert soft_min >= 0 and soft_max < self.n_periods
+        assert max_cost >= 0 and max_cost < self.n_periods
+
+        self.is_optimization = True
+
+        prefix = 'soft_short_long'
+
+        for d in range(self.n_days):
+            for cur_id, cur in self.curricula.items():
+
+                intervals_dictionary = {}  # key map of start_of_lecture -> end_of_lecture
+                sum_durations_low = 0
+
+                for c_id, c in cur.courses.items():
+                    
+                    #calulate sum_durations_low i.e sum of durations of lectures of all courses of a particular curriculum on a particular day
+
+                    lecture_duration = self.model_vars[cur_id, d, c_id].duration
+                    sum_durations_low = sum_durations_low + lecture_duration
+
+                    #calulate sum_durations_high i.e total time (i.e. end of last course - start of first course) 
+
+                    start_of_lecture = self.model_vars[cur_id, d, c_id].start
+                    end_of_lecture = self.model_vars[cur_id, d, c_id].end
+                    #interval_of_lecture = self.model_vars[cur_id, d, c_id].interval
+                    intervals_dictionary[start_of_lecture] = end_of_lecture
+
+                    #MOVE OUT OF THE course LOOP
+
+                # penalize if total time of lectures scheduled is too low but if it's zero, that is good so delta should be zero.
+                delta = self.model.NewIntVar(-self.n_periods,
+                                                 self.n_periods, '')
+
+                if sum_durations_low == 0:
+                    self.model.Add(delta == sum_durations_low - soft_min)    # delta is negative when sum_durations_low is 0
+                else:
+                    self.model.Add(delta == soft_min - sum_durations_low)   # delta is positive when sum_durations_low is < soft min
+                
+                #self.model.Add(delta == soft_min - sum_durations_low)
+
+                excess = self.model.NewIntVar(
+                            0, self.n_periods, prefix + '_under_sum')
+
+                self.model.AddMaxEquality(excess, [delta, 0])
+                self.obj_int_vars.append(excess)
+                self.obj_int_coeffs.append(min_cost)
+
+
+                # penalize if total time(i.e. end of last course - start of first course) is too wide apart
+                delta = self.model.NewIntVar(-self.n_periods,
+                                                 self.n_periods, '')
+
+                end_of_last_lecture = max(intervals_dictionary.values())
+                start_of_first_lecture = min(intervals_dictionary.keys())
+                sum_durations_high = end_of_last_lecture - start_of_first_lecture
+            
+                # delta is positive when sum_durations_high is > soft max    
+                self.model.Add(delta == sum_durations_high - soft_max)
+
+                excess = self.model.NewIntVar(
+                    0, self.n_periods, prefix + '_over_sum')
+
+                self.model.AddMaxEquality(excess, [delta, 0])
+                self.obj_int_vars.append(excess)
+                self.obj_int_coeffs.append(max_cost)
+
 
     def _set_obj(self):
         """ Set objective of the model to minimize the sum of cost vars multiplied by
@@ -684,14 +755,19 @@ def main():
     # penalize early classes twice as much as late ones
     sched.add_soft_start_time_constraints(4, 17, 2, 1)
 
-    n_solutions = 100 
+
+    # penalize classes that have total duration less than 2 hrs(4) or are scheduled 8 hrs apart(16)
+    # penalize early classes twice as much as late ones
+    sched.add_soft_total_time_constraints(4,14,2,1)
+
+    n_solutions = 25 
 
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions)
-    sched.solve(solution_printer, obj_proximity_delta=10)
+    sched.solve(solution_printer, obj_proximity_delta=0)
     sched.print_statistics(solution_printer)
 
 
