@@ -562,11 +562,14 @@ class CourseSched:
                     self.obj_int_vars.append(excess)
                     self.obj_int_coeffs.append(min_cost)
 
+
+
+                    end = self.model_vars[cur_id, d, c_id].end
                     # penalize lectures that start too late
                     delta = self.model.NewIntVar(-self.n_periods,
                                                  self.n_periods, '')
                     # delta is positive when lecture start time is > soft max
-                    self.model.Add(delta == start - soft_max)
+                    self.model.Add(delta == end - soft_max)
                     excess = self.model.NewIntVar(
                         0, self.n_periods, prefix + '_over_sum')
                     self.model.AddMaxEquality(excess, [delta, 0])
@@ -603,7 +606,8 @@ class CourseSched:
                     start_of_lecture = self.model_vars[cur_id, d, c_id].start
                     end_of_lecture = self.model_vars[cur_id, d, c_id].end
                     #interval_of_lecture = self.model_vars[cur_id, d, c_id].interval
-                    intervals_dictionary[start_of_lecture] = end_of_lecture
+                    if lecture_duration:
+                        intervals_dictionary[start_of_lecture] = end_of_lecture
 
                     #MOVE OUT OF THE course LOOP
 
@@ -615,12 +619,9 @@ class CourseSched:
                     self.model.Add(delta == sum_durations_low - soft_min)    # delta is negative when sum_durations_low is 0
                 else:
                     self.model.Add(delta == soft_min - sum_durations_low)   # delta is positive when sum_durations_low is < soft min
-                
-                #self.model.Add(delta == soft_min - sum_durations_low)
 
                 excess = self.model.NewIntVar(
                             0, self.n_periods, prefix + '_under_sum')
-
                 self.model.AddMaxEquality(excess, [delta, 0])
                 self.obj_int_vars.append(excess)
                 self.obj_int_coeffs.append(min_cost)
@@ -636,10 +637,9 @@ class CourseSched:
             
                 # delta is positive when sum_durations_high is > soft max    
                 self.model.Add(delta == sum_durations_high - soft_max)
-
+                
                 excess = self.model.NewIntVar(
                     0, self.n_periods, prefix + '_over_sum')
-
                 self.model.AddMaxEquality(excess, [delta, 0])
                 self.obj_int_vars.append(excess)
                 self.obj_int_coeffs.append(max_cost)
@@ -756,7 +756,7 @@ def main():
     sched.add_soft_start_time_constraints(4, 17, 2, 1)
 
 
-    # penalize classes that have total duration less than 2 hrs(4) or are scheduled 8 hrs apart(16)
+    # penalize classes that have total duration less than 2 hrs(4) or are scheduled 7 hrs apart(14)
     # penalize early classes twice as much as late ones
     sched.add_soft_total_time_constraints(4,14,2,1)
 
