@@ -1,12 +1,12 @@
 import unittest
 from course_sched import (
-        CourseSched,
-        COURSE_GRANULARITY,
-        Course,
-        Curriculum,
-        SolverCallbackUtil, 
-        SchedPartialSolutionSerializer
-        )
+    CourseSched,
+    COURSE_GRANULARITY,
+    Course,
+    Curriculum,
+    SolverCallbackUtil,
+    SchedPartialSolutionSerializer
+)
 import os
 import sys
 from schema import SchemaError
@@ -61,7 +61,8 @@ class TestSchedUnavailabilityConstraintsCallback(SolverCallbackUtil):
                     for d in range(self._n_days):
                         duration = self.Value(
                             self._model_vars[cur_id, d, c_id].duration)
-                        start = self.Value(self._model_vars[cur_id, d, c_id].start)
+                        start = self.Value(
+                            self._model_vars[cur_id, d, c_id].start)
                         end = self.Value(self._model_vars[cur_id, d, c_id].end)
 
                         # course 3 can only happen on day 2
@@ -247,8 +248,10 @@ class TestCourseLockCallback(SolverCallbackUtil):
                 for d in range(self._n_days):
                     for c_id, c in cur.courses.items():
                         if c_id == '0':
-                            course_0_start = self.Value(self._model_vars[cur_id, d, '0'].start)
-                            course_0_duration = self.Value(self._model_vars[cur_id, d, '0'].duration)
+                            course_0_start = self.Value(
+                                self._model_vars[cur_id, d, '0'].start)
+                            course_0_duration = self.Value(
+                                self._model_vars[cur_id, d, '0'].duration)
                             if d in {0, 2, 4} and course_0_duration != 0:
                                 self.msg = f"Course 0 has to be scheduled on Tue and Thu"
                                 self.success = False
@@ -258,8 +261,10 @@ class TestCourseLockCallback(SolverCallbackUtil):
                                 self.success = False
                                 self.StopSearch()
                         if c_id == '4':
-                            course_4_start = self.Value(self._model_vars[cur_id, d, '4'].start)
-                            course_4_duration = self.Value(self._model_vars[cur_id, d, '4'].duration)
+                            course_4_start = self.Value(
+                                self._model_vars[cur_id, d, '4'].start)
+                            course_4_duration = self.Value(
+                                self._model_vars[cur_id, d, '4'].duration)
                             if d in {1, 3} and course_4_duration != 0:
                                 self.msg = f"Course 4 has to be scheduled on Mon, Wed and Fri"
                                 self.success = False
@@ -277,7 +282,7 @@ class TestCourseLockCallback(SolverCallbackUtil):
 class TestSoftTotalTimeConstraintCallback(SolverCallbackUtil):
 
     def __init__(self, model_vars, curricula, n_days,
-                 n_periods,soft_min, soft_max, n_solutions):
+                 n_periods, soft_min, soft_max, n_solutions):
         SolverCallbackUtil.__init__(
             self, model_vars, curricula, n_days, n_periods, n_solutions)
         self.success = True
@@ -296,14 +301,17 @@ class TestSoftTotalTimeConstraintCallback(SolverCallbackUtil):
 
                     for c_id, c in cur.courses.items():
 
-                        #calulate sum_durations_low i.e sum of durations of lectures of all courses of a particular curriculum on a particular day
-                        lecture_duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
+                        # calulate sum_durations_low i.e sum of durations of lectures of all courses of a particular curriculum on a particular day
+                        lecture_duration = self.Value(
+                            self._model_vars[cur_id, d, c_id].duration)
                         sum_durations_low = sum_durations_low + lecture_duration
 
-                        #calulate sum_durations_high i.e total time (i.e. end of last course - start of first course)
+                        # calulate sum_durations_high i.e total time (i.e. end of last course - start of first course)
 
-                        start_of_lecture = self.Value(self._model_vars[cur_id, d, c_id].start)
-                        end_of_lecture = self.Value(self._model_vars[cur_id, d, c_id].end)
+                        start_of_lecture = self.Value(
+                            self._model_vars[cur_id, d, c_id].start)
+                        end_of_lecture = self.Value(
+                            self._model_vars[cur_id, d, c_id].end)
                         #interval_of_lecture = self.model_vars[cur_id, d, c_id].interval
                         if lecture_duration:
                             intervals_dictionary[start_of_lecture] = end_of_lecture
@@ -313,11 +321,9 @@ class TestSoftTotalTimeConstraintCallback(SolverCallbackUtil):
                         self.success = False
                         self.StopSearch()
 
-
                     end_of_last_lecture = max(intervals_dictionary.values())
                     start_of_first_lecture = min(intervals_dictionary.keys())
                     sum_durations_high = end_of_last_lecture - start_of_first_lecture
-
 
                     if sum_durations_high >= self.soft_max:
                         self.msg = "courses of a particular curriculum on a particular day are scheduled 7 periods or more apart"
@@ -346,10 +352,12 @@ class TestSoftStartTimeConstraints(SolverCallbackUtil):
             for cur_id, cur in self._curricula.items():
                 for d in range(self._n_days):
                     for c_id, c in cur.courses.items():
-                        start = self.Value(self._model_vars[cur_id, d, c_id].start)
+                        start = self.Value(
+                            self._model_vars[cur_id, d, c_id].start)
                         end = self.Value(self._model_vars[cur_id, d, c_id].end)
-                        duration = self.Value(self._model_vars[cur_id, d, c_id].duration)
-                        if duration: 
+                        duration = self.Value(
+                            self._model_vars[cur_id, d, c_id].duration)
+                        if duration:
                             if start < self.soft_min:
                                 self.msg = f"Found a course that starts too early: {start}"
                                 self.success = False
@@ -369,8 +377,10 @@ class TestCourseSched(unittest.TestCase):
         """ Sum of scheduled periods per course per week
             must be equal to the `n_periods` for the corresponding `Course`.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
         cur0 = Curriculum('0', courses0)
@@ -404,7 +414,8 @@ class TestCourseSched(unittest.TestCase):
         """ Intervals marked as unavailable for particular courses
             must not be taken by those courses.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 4), Course('2', 6), Course('3', 6)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 4), Course('2', 6), Course('3', 6)
         courses = [c0, c1, c2, c3]
         cur = Curriculum('0', courses)
         curricula = [cur]
@@ -439,12 +450,13 @@ class TestCourseSched(unittest.TestCase):
         else:
             self.fail("Expected to find some solutions")
 
-
     def test_lecture_len_constraint(self):
         """ Lecture lengths must be 2, 3 or 6.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
         cur0 = Curriculum('0', courses0)
@@ -471,8 +483,10 @@ class TestCourseSched(unittest.TestCase):
     def test_curricula_sync(self):
         """ Courses shared across different curricula must happen at the same time.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
         c8, c9, c10, c11 = Course('8', 6), Course(
             '9', 4), Course('10', 6), Course('11', 4)
         courses0 = [c0, c1, c2, c3, c11]
@@ -506,8 +520,10 @@ class TestCourseSched(unittest.TestCase):
         """ Lectures have to be scheduled symmetrically. I.e. a 1.5 hour lecture at 1PM Tue
             must also be scheduled for 1PM Thu.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 4), Course('2', 6), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 4), Course('2', 6), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
         courses = [c0, c1, c2, c3, c4, c5, c6, c7]
         cur = Curriculum('0', courses)
         curricula = [cur]
@@ -534,8 +550,10 @@ class TestCourseSched(unittest.TestCase):
     def test_solution_serializer(self):
         """ Test solution serializer used by the API.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
         cur0 = Curriculum('0', courses0)
@@ -565,8 +583,10 @@ class TestCourseSched(unittest.TestCase):
     def test_course_lock(self):
         """ Test course locking.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
         cur0 = Curriculum('0', courses0)
@@ -582,20 +602,20 @@ class TestCourseSched(unittest.TestCase):
         sched.add_sync_across_curricula_constraints()
         sched.add_lecture_symmetry_constraints()
         course_0_lock = [
-                {'day': 1, 'duration': 3, 'start': 10},
-                {'day': 3, 'duration': 3, 'start': 10}]
+            {'day': 1, 'duration': 3, 'start': 10},
+            {'day': 3, 'duration': 3, 'start': 10}]
         course_4_lock = [
-                {'day': 0, 'duration': 2, 'start': 20},
-                {'day': 2, 'duration': 2, 'start': 20},
-                {'day': 4, 'duration': 2, 'start': 20}]
+            {'day': 0, 'duration': 2, 'start': 20},
+            {'day': 2, 'duration': 2, 'start': 20},
+            {'day': 4, 'duration': 2, 'start': 20}]
         sched.add_course_lock('0', course_0_lock)
         sched.add_course_lock('4', course_4_lock)
 
         test_callback = TestCourseLockCallback(sched.model_vars,
-                                                sched.curricula,
-                                                sched.n_days,
-                                                sched.n_periods,
-                                                N_SOL_PER_TEST)
+                                               sched.curricula,
+                                               sched.n_days,
+                                               sched.n_periods,
+                                               N_SOL_PER_TEST)
 
         sched.solve(test_callback)
         if test_callback._solution_count:
@@ -607,8 +627,10 @@ class TestCourseSched(unittest.TestCase):
     def test_soft_constraint_total_time(self):
         """ Checks that there are not too many or too few periods scheduled for each day.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 6), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 6), Course('6', 6), Course('7', 6)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 6), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 6), Course('6', 6), Course('7', 6)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
         cur0 = Curriculum('0', courses0)
@@ -624,20 +646,18 @@ class TestCourseSched(unittest.TestCase):
         sched.add_sync_across_curricula_constraints()
         sched.add_lecture_symmetry_constraints()
 
-
-
         soft_min, soft_max = 4, 14
 
-        sched.add_soft_total_time_constraints(soft_min,soft_max,1,1)
+        sched.add_soft_total_time_constraints(soft_min, soft_max, 1, 1)
         test_callback = TestSoftTotalTimeConstraintCallback(sched.model_vars,
-                                                   sched.curricula,
-                                                   sched.n_days,
-                                                   sched.n_periods,
-                                                   soft_min,
-                                                   soft_max,
-                                                   N_SOL_PER_TEST)
+                                                            sched.curricula,
+                                                            sched.n_days,
+                                                            sched.n_periods,
+                                                            soft_min,
+                                                            soft_max,
+                                                            N_SOL_PER_TEST)
 
-        sched.solve(test_callback,obj_proximity_delta=0)
+        sched.solve(test_callback, obj_proximity_delta=0)
 
         if test_callback._solution_count:
             # self.assertTrue(True)
@@ -646,12 +666,13 @@ class TestCourseSched(unittest.TestCase):
         else:
             self.fail("Expected to find some solutions")
 
-
     def test_soft_start_time_constraints(self):
         """ Test soft constraints around first class start time and last class end time.
         """
-        c0, c1, c2, c3 = Course('0', 6), Course('1', 6), Course('2', 4), Course('3', 6)
-        c4, c5, c6, c7 = Course('4', 6), Course('5', 4), Course('6', 4), Course('7', 4)
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
         cur0 = Curriculum('0', courses0)
@@ -666,7 +687,8 @@ class TestCourseSched(unittest.TestCase):
         sched.add_lecture_len_constraints()
         sched.add_sync_across_curricula_constraints()
         sched.add_lecture_symmetry_constraints()
-        soft_min, soft_max = 4, 24 # no courses starting earlier than 4 or ending later than 24
+        # no courses starting earlier than 4 or ending later than 24
+        soft_min, soft_max = 4, 24
         sched.add_soft_start_time_constraints(soft_min, soft_max, 1, 1)
 
         test_callback = TestSoftStartTimeConstraints(sched.model_vars,

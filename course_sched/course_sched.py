@@ -363,13 +363,12 @@ class CourseSched:
 
         self.model.AddNoOverlap(interval_vars)
 
-
     def _invert_interval(self, interval: Interval) -> List[Interval]:
         """ Return all intervals outside of the input interval.
-            
+
             E.g. (3, 6) -> [(0, 2), (7, 26)]
                 (24, 26) -> [(0, 23)]
-        """ 
+        """
         last_period = self.n_periods - 1
         start, end = interval
         intervals = []
@@ -382,19 +381,20 @@ class CourseSched:
             intervals.append((end + 1, last_period))
         return intervals
 
-
     def add_course_lock(self, c_id: int, locks: List[Dict]):
         """ Ensure that a course is scheduled at a specific time with no exceptions.
         """
         days_without_lock = {x for x in range(self.n_days)}
-        for day_lock in locks: 
+        for day_lock in locks:
             day = day_lock['day']
-            interval = day_lock['start'], day_lock['start'] + day_lock['duration'] - 1
-            self.add_unavailability_constraints(c_id, day, self._invert_interval(interval))
+            interval = day_lock['start'], day_lock['start'] + \
+                day_lock['duration'] - 1
+            self.add_unavailability_constraints(
+                c_id, day, self._invert_interval(interval))
             days_without_lock.remove(day)
         for day in days_without_lock:
-            self.add_unavailability_constraints(c_id, day, [(0, self.n_periods - 1)])
-
+            self.add_unavailability_constraints(
+                c_id, day, [(0, self.n_periods - 1)])
 
     def add_lecture_len_constraints(self):
         """ Ensures that each course takes up consecutive number of periods per day:
@@ -564,51 +564,6 @@ class CourseSched:
                                        conjunction_b,
                                        conjunction_c])
 
-    def add_soft_start_time_constraints(self, soft_min: int,
-                                        soft_max: int,
-                                        max_cost: int,
-                                        min_cost: int):
-        """ Add soft constraints on how early the first class of the day takes place and
-            how late the last class finishes.
-
-            Create delta variables (diff between class start and soft constrain value)
-            and their coefficients.
-        """
-        assert min_cost >= 0 and min_cost < self.n_periods
-        assert max_cost >= 0 and max_cost < self.n_periods
-
-        self.is_optimization = True
-
-        prefix = 'soft_start_end'
-
-        for d in range(self.n_days):
-            for cur_id, cur in self.curricula.items():
-                for c_id, c in cur.courses.items():
-
-                    # penalize lectures that start too early
-                    delta = self.model.NewIntVar(-self.n_periods,
-                                                 self.n_periods, '')
-                    start = self.model_vars[cur_id, d, c_id].start
-                    # delta is positive when lecture start time is < soft min
-                    self.model.Add(delta == soft_min - start)
-                    excess = self.model.NewIntVar(
-                        0, self.n_periods, prefix + '_under_sum')
-                    self.model.AddMaxEquality(excess, [delta, 0])
-                    self.obj_int_vars.append(excess)
-                    self.obj_int_coeffs.append(min_cost)
-
-                    # penalize lectures that start too late
-                    delta = self.model.NewIntVar(-self.n_periods,
-                                                 self.n_periods, '')
-                    # delta is positive when lecture start time is > soft max
-                    self.model.Add(delta == start - soft_max)
-                    excess = self.model.NewIntVar(
-                        0, self.n_periods, prefix + '_over_sum')
-                    self.model.AddMaxEquality(excess, [delta, 0])
-                    self.obj_int_vars.append(excess)
-                    self.obj_int_coeffs.append(max_cost)
-
-
     def add_soft_total_time_constraints(self, soft_min: int,
                                         soft_max: int,
                                         max_cost: int,
@@ -629,12 +584,13 @@ class CourseSched:
 
                 for c_id, c in cur.courses.items():
 
-                    #calulate sum_durations_low i.e sum of durations of lectures of all courses of a particular curriculum on a particular day
+                    # calulate sum_durations_low i.e sum of durations of lectures of all courses of a particular curriculum on a particular day
 
-                    lecture_duration = self.model_vars[cur_id, d, c_id].duration
+                    lecture_duration = self.model_vars[cur_id,
+                                                       d, c_id].duration
                     sum_durations_low = sum_durations_low + lecture_duration
 
-                    #calulate sum_durations_high i.e total time (i.e. end of last course - start of first course)
+                    # calulate sum_durations_high i.e total time (i.e. end of last course - start of first course)
 
                     start_of_lecture = self.model_vars[cur_id, d, c_id].start
                     end_of_lecture = self.model_vars[cur_id, d, c_id].end
@@ -642,27 +598,28 @@ class CourseSched:
                     if lecture_duration:
                         intervals_dictionary[start_of_lecture] = end_of_lecture
 
-                    #MOVE OUT OF THE course LOOP
+                    # MOVE OUT OF THE course LOOP
 
                 # penalize if total time of lectures scheduled is too low but if it's zero, that is good so delta should be zero.
                 delta = self.model.NewIntVar(-self.n_periods,
-                                                 self.n_periods, '')
+                                             self.n_periods, '')
 
                 if sum_durations_low == 0:
-                    self.model.Add(delta == sum_durations_low - soft_min)    # delta is negative when sum_durations_low is 0
+                    # delta is negative when sum_durations_low is 0
+                    self.model.Add(delta == sum_durations_low - soft_min)
                 else:
-                    self.model.Add(delta == soft_min - sum_durations_low)   # delta is positive when sum_durations_low is < soft min
+                    # delta is positive when sum_durations_low is < soft min
+                    self.model.Add(delta == soft_min - sum_durations_low)
 
                 excess = self.model.NewIntVar(
-                            0, self.n_periods, prefix + '_under_sum')
+                    0, self.n_periods, prefix + '_under_sum')
                 self.model.AddMaxEquality(excess, [delta, 0])
                 self.obj_int_vars.append(excess)
                 self.obj_int_coeffs.append(min_cost)
 
-
                 # penalize if total time(i.e. end of last course - start of first course) is too wide apart
                 delta = self.model.NewIntVar(-self.n_periods,
-                                                 self.n_periods, '')
+                                             self.n_periods, '')
 
                 end_of_last_lecture = max(intervals_dictionary.values())
                 start_of_first_lecture = min(intervals_dictionary.keys())
@@ -676,7 +633,6 @@ class CourseSched:
                 self.model.AddMaxEquality(excess, [delta, 0])
                 self.obj_int_vars.append(excess)
                 self.obj_int_coeffs.append(max_cost)
-
 
     def add_soft_start_time_constraints(self, soft_min: int,
                                         soft_max: int,
@@ -722,24 +678,22 @@ class CourseSched:
                     self.obj_int_vars.append(excess)
                     self.obj_int_coeffs.append(max_cost)
 
-
     def _set_obj(self):
         """ Set objective of the model to minimize the sum of cost vars multiplied by
             cost coefficients.
         """
         assert self.obj_int_vars and self.obj_int_coeffs
         assert self.is_optimization
-                             # for i in range(len(self.obj_int_vars)))
-        self.obj = cp_model.LinearExpr.ScalProd(self.obj_int_vars, self.obj_int_coeffs)
+        # for i in range(len(self.obj_int_vars)))
+        self.obj = cp_model.LinearExpr.ScalProd(
+            self.obj_int_vars, self.obj_int_coeffs)
         self.model.Minimize(self.obj)
-
 
     def _unset_obj(self):
         """ Unset the objective so that we can use solver.SearchForAllSolutions.
         """
         assert self.obj
         self.model.Proto().ClearField('objective')
-
 
     def _add_obj_bound_proximity_constraint(self, delta: int):
         """ Add a constraint such that all solutions must
@@ -755,15 +709,15 @@ class CourseSched:
         assert self.solver
 
         # find the objective bound (best solution objective value)
-        self._set_obj() # set model minimization objective
-        self.solver.parameters.num_search_workers = 8 # speed up this search
-        self.solver.Solve(self.model) 
-        obj_bound = round(self.solver.BestObjectiveBound()) # get objective bound
-        self._unset_obj() # unset model minimization objective
-        
+        self._set_obj()  # set model minimization objective
+        self.solver.parameters.num_search_workers = 8  # speed up this search
+        self.solver.Solve(self.model)
+        obj_bound = round(self.solver.BestObjectiveBound()
+                          )  # get objective bound
+        self._unset_obj()  # unset model minimization objective
+
         # add objective bound constraint
         self.model.Add(self.obj <= obj_bound + delta)
-
 
     def solve(self, callback: cp_model.CpSolverSolutionCallback,
               max_time: int = None,
@@ -782,10 +736,9 @@ class CourseSched:
             self.solver.parameters.max_time_in_seconds = max_time
         if self.is_optimization:
             self._add_obj_bound_proximity_constraint(obj_proximity_delta)
-            callback.set_objective(self.obj) # add objective value to callback
-        self.solver.parameters.num_search_workers = 1 # search for all can use only 1
+            callback.set_objective(self.obj)  # add objective value to callback
+        self.solver.parameters.num_search_workers = 1  # search for all can use only 1
         self.solver.SearchForAllSolutions(self.model, callback)
-
 
     def print_statistics(self, callback: cp_model.CpSolverSolutionCallback):
         """ Print solution statistics.
@@ -833,7 +786,7 @@ def main():
     # penalize early classes twice as much as late ones
     sched.add_soft_start_time_constraints(4, 17, 2, 1)
 
-    n_solutions = 100 
+    n_solutions = 100
 
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
                                                    sched.curricula,
@@ -846,4 +799,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
