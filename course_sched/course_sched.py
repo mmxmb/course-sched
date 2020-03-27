@@ -678,6 +678,63 @@ class CourseSched:
                     self.obj_int_vars.append(excess)
                     self.obj_int_coeffs.append(max_cost)
 
+    def add_soft_three_row_constraints(self, soft_max: int,
+                                        cost: int):
+
+        assert soft_max >= 0 and soft_max < self.n_periods
+        assert cost > 0
+
+        self.is_optimization = True
+
+        prefix = 'soft_three_row'
+
+        for d in range(self.n_days):
+            for cur_id, cur in self.curricula.items():
+
+                intervals_dictionary = {}  # key map of start_of_lecture -> end_of_lecture
+
+                for c_id, c in cur.courses.items():
+
+                    start_of_lecture = self.model_vars[cur_id, d, c_id].start
+                    end_of_lecture = self.model_vars[cur_id, d, c_id].end
+                    lecture_duration = self.model_vars[cur_id,
+                                                       d, c_id].duration
+                    if lecture_duration:
+                        intervals_dictionary[start_of_lecture] = end_of_lecture
+
+
+                # penalize if there are 1 or more instances of 3 lectures in a row
+                delta = self.model.NewIntVar(-self.n_periods,
+                                             self.n_periods, '')
+
+                lecture_starts_list = intervals_dictionary.keys()
+                lecture_ends_list = intervals_dictionary.values()
+                lecture_starts_list_sorted = sorted(lecture_starts_list)
+                lecture_ends_list_sorted = sorted(lecture_ends_list)
+                three_row_counter = 0         # instances of 3 lectures in a row
+
+                for s in lecture_starts_list_sorted:
+                    interval_overlap_counter = 0
+
+                    for e in lecture_ends_list_sorted:
+                        if s == e:
+                            interval_overlap_counter = interval_overlap_counter + 1
+                        else:
+                            interval_overlap_counter = 0      # counter reset to 0 if start != any end i.e. a gap
+                    
+                    if interval_overlap_counter == 2:         # if overlap/contiguous counter hits 2 at any point,we have 3 lectures in a row
+                        three_row_counter= three_row_counter + 1
+
+
+                # delta is positive when three_row_counter is > soft_max (soft_max can be 0 or 1)
+                self.model.Add(delta == three_row_counter - soft_max)
+
+                excess = self.model.NewIntVar(
+                    0, self.n_periods, prefix + '_over_sum')
+                self.model.AddMaxEquality(excess, [delta, 0])
+                self.obj_int_vars.append(excess)
+                self.obj_int_coeffs.append(cost)
+
     def _set_obj(self):
         """ Set objective of the model to minimize the sum of cost vars multiplied by
             cost coefficients.
@@ -784,7 +841,8 @@ def main():
 
     # penalize classes that start earlier than 10:30 (4) or later than 17:00 (17)
     # penalize early classes twice as much as late ones
-    sched.add_soft_start_time_constraints(4, 17, 2, 1)
+    #sched.add_soft_start_time_constraints(4, 17, 2, 1)
+    sched.add_soft_three_row_constraints(0,2)
 
     n_solutions = 100
 
