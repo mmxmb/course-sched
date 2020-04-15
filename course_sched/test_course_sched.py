@@ -429,6 +429,107 @@ class TestSoftThreeRowConstraints(SolverCallbackUtil):
             self.StopSearch()
         self._solution_count += 1        
 
+class TestSoftPeriodsRowConstraints(SolverCallbackUtil):
+
+    def __init__(self, model_vars, curricula, n_days,
+                 n_periods, soft_max, n_solutions):
+        SolverCallbackUtil.__init__(
+            self, model_vars, curricula, n_days, n_periods, n_solutions)
+        self.success = True
+        self.msg = ""
+        self._solution_count = 0
+        self.soft_max = soft_max
+
+    def on_solution_callback(self):
+        if self._solution_count in self._solutions:
+            for d in range(self._n_days):
+                for cur_id, cur in self._curricula.items():
+
+                    intervals_dictionary = {}  # key map of start_of_lecture -> end_of_lecture
+                    start_duration_dictionary = {} # start -> duration
+                    end_duration_dictionary = {}   # end   -> duration
+
+                    for c_id, c in cur.courses.items():
+
+                        lecture_duration = self.Value(
+                            self._model_vars[cur_id, d, c_id].duration)
+                        start_of_lecture = self.Value(
+                            self._model_vars[cur_id, d, c_id].start)
+                        end_of_lecture = self.Value(
+                            self._model_vars[cur_id, d, c_id].end)
+                 
+                        if lecture_duration:
+                            intervals_dictionary[start_of_lecture] = end_of_lecture
+                            start_duration_dictionary[start_of_lecture] = lecture_duration
+                            end_duration_dictionary[end_of_lecture] = lecture_duration
+
+
+                    lecture_starts_list = intervals_dictionary.keys()
+                    lecture_ends_list = intervals_dictionary.values()
+                    lecture_starts_list_sorted = sorted(lecture_starts_list)
+                    lecture_ends_list_sorted = sorted(lecture_ends_list)
+                    first_overlap_flag = False
+                    interval_overlap_counter = 0
+                    list_of_durations = []
+                    list_of_periods = []    # list_of_backToBack_periods_in_a_day = [number_of_periods1, number_of_periods2 ,...]
+                    number_of_periods = 0   #number_of_periods_in_a_row
+                    #period_temp = 0
+                   
+                    for s in lecture_starts_list_sorted:
+                        gap_flag = True
+
+                        for e in lecture_ends_list_sorted:
+                            if s == e:
+
+                                if first_overlap_flag == False and list_of_periods:
+                                    del list_of_periods[-1]
+                                interval_overlap_counter = interval_overlap_counter + 1
+                                duration1 = end_duration_dictionary[e]
+                                duration2 = start_duration_dictionary[s]
+
+                                if (interval_overlap_counter == 1):
+                                    list_of_durations.append(duration1)
+                                    list_of_durations.append(duration2)
+                                
+                                if (interval_overlap_counter >= 2):
+                                    list_of_durations.append(duration2)
+                                
+                                first_overlap_flag = True
+                                gap_flag = False    
+
+                        # GAP BETWEEN OVERLAPS:      (all ends weren't equal to this start which means he hit a GAP)                    
+                        if gap_flag == True and first_overlap_flag == True:
+                            for dur in list_of_durations:
+                                number_of_periods = number_of_periods + dur
+                            list_of_periods.append(number_of_periods)
+                            list_of_durations.clear()   # empty the list since we hit a gap
+                            interval_overlap_counter = 0   # reset overlap counter
+                        
+                        
+                        # GAP BEFORE OVERLAPS:        (Gap hit but no overlaps yet in this day{outlier case of initial seperated lectures})
+                        if gap_flag == True and first_overlap_flag == False:
+                            duration_current = start_duration_dictionary[s]
+                            number_of_periods = duration_current
+                            list_of_periods.append(number_of_periods)
+                        
+
+                    # Case: NO GAP (if all periods were back-to-back with no gaps OR the last few courses were back-to-back)
+                    for dur in list_of_durations:
+                        number_of_periods = number_of_periods + dur
+                    list_of_periods.append(number_of_periods)
+                    #period_temp = list_of_periods[0]
+                    
+                    # print(list_of_periods)
+                    for periods in list_of_periods:
+                        if periods > self.soft_max:
+                            self.msg = "courses of a particular curriculum on a particular day have more than soft max periods in a row"
+                            self.success = False
+                            self.StopSearch()       
+                    
+        else:
+            self.StopSearch()
+        self._solution_count += 1
+
 
 class TestCourseSched(unittest.TestCase):
 
@@ -771,9 +872,9 @@ class TestCourseSched(unittest.TestCase):
         """ Checks that there are not too many three lectures in a row.
         """
         c0, c1, c2, c3 = Course('0', 6), Course(
-            '1', 6), Course('2', 6), Course('3', 6)
+            '1', 6), Course('2', 4), Course('3', 6)
         c4, c5, c6, c7 = Course('4', 6), Course(
-            '5', 6), Course('6', 6), Course('7', 6)
+            '5', 4), Course('6', 4), Course('7', 4)
         courses0 = [c0, c1, c2, c3]
         courses1 = [c4, c5, c6, c7]
         cur0 = Curriculum('0', courses0)
@@ -807,6 +908,49 @@ class TestCourseSched(unittest.TestCase):
             self.assertTrue(test_callback.success, msg=test_msg)
         else:
             self.fail("Expected to find some solutions")
+
+    def test_soft_periods_row_constraints(self):
+        """ Checks that there are not too many periods in a row.
+        """
+        c0, c1, c2, c3 = Course('0', 6), Course(
+            '1', 6), Course('2', 4), Course('3', 6)
+        c4, c5, c6, c7 = Course('4', 6), Course(
+            '5', 4), Course('6', 4), Course('7', 4)
+        courses0 = [c0, c1, c2, c3]
+        courses1 = [c4, c5, c6, c7]
+        cur0 = Curriculum('0', courses0)
+        cur1 = Curriculum('1', courses1)
+        curricula = [cur0, cur1]
+        n_days = 5
+        n_periods = 27
+
+        sched = CourseSched(n_days, n_periods, curricula)
+        sched.add_no_overlap_constraints()
+        sched.add_course_len_constraints()
+        sched.add_lecture_len_constraints()
+        sched.add_sync_across_curricula_constraints()
+        sched.add_lecture_symmetry_constraints()
+
+        soft_max = 8
+
+        sched.add_soft_periods_in_a_row_constraints(soft_max,1)
+        test_callback = TestSoftPeriodsRowConstraints(sched.model_vars,
+                                                            sched.curricula,
+                                                            sched.n_days,
+                                                            sched.n_periods,
+                                                            soft_max,
+                                                            N_SOL_PER_TEST)
+
+        sched.solve(test_callback, obj_proximity_delta=0)
+
+        if test_callback._solution_count:
+            # self.assertTrue(True)
+            test_msg = test_callback.msg + "\n" + test_callback.sol_to_str()
+            self.assertTrue(test_callback.success, msg=test_msg)
+        else:
+            self.fail("Expected to find some solutions")
+
+
 
 
 if __name__ == '__main__':

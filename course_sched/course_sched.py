@@ -735,6 +735,100 @@ class CourseSched:
                 self.obj_int_vars.append(excess)
                 self.obj_int_coeffs.append(cost)
 
+    def add_soft_periods_in_a_row_constraints(self, soft_max: int,
+                                        cost: int):
+
+        assert soft_max >= 0 and soft_max < self.n_periods
+        assert cost > 0
+
+        self.is_optimization = True
+
+        prefix = 'soft_periods_row'
+
+        for d in range(self.n_days):
+            for cur_id, cur in self.curricula.items():
+
+                intervals_dictionary = {}  # key map of start_of_lecture -> end_of_lecture
+                start_duration_dictionary = {} # start -> duration
+                end_duration_dictionary = {}   # end   -> duration
+
+                for c_id, c in cur.courses.items():
+
+                    start_of_lecture = self.model_vars[cur_id, d, c_id].start
+                    end_of_lecture = self.model_vars[cur_id, d, c_id].end
+                    lecture_duration = self.model_vars[cur_id,
+                                                       d, c_id].duration
+                    if lecture_duration:
+                        intervals_dictionary[start_of_lecture] = end_of_lecture
+                        start_duration_dictionary[start_of_lecture] = lecture_duration
+                        end_duration_dictionary[end_of_lecture] = lecture_duration
+
+
+                lecture_starts_list = intervals_dictionary.keys()
+                lecture_ends_list = intervals_dictionary.values()
+                lecture_starts_list_sorted = sorted(lecture_starts_list)
+                lecture_ends_list_sorted = sorted(lecture_ends_list)
+
+                first_overlap_flag = False
+                interval_overlap_counter = 0
+                list_of_durations = []
+                list_of_periods = []    # list_of_backToBack_periods_in_a_day = [number_of_periods1, number_of_periods2 ,...]
+                number_of_periods = 0   #number_of_periods_in_a_row
+                
+                for s in lecture_starts_list_sorted:      # loop through starts
+                    gap_flag = True
+
+                    for e in lecture_ends_list_sorted:        # loop through ends
+                        if s == e:       # start(i) = end(i-1)
+
+                            if first_overlap_flag == False and list_of_periods:
+                                del list_of_periods[-1]
+                            duration1 = end_duration_dictionary[e]
+                            duration2 = start_duration_dictionary[s]
+                            interval_overlap_counter = interval_overlap_counter + 1
+
+                            if (interval_overlap_counter == 1):       # one overlap so far
+                                list_of_durations.append(duration1)
+                                list_of_durations.append(duration2)
+
+                            if (interval_overlap_counter >= 2):       # two or more overlaps in a row so far
+                                list_of_durations.append(duration2)
+
+                            first_overlap_flag = True
+                            gap_flag = False    
+                    
+                    # GAP BETWEEN OVERLAPS:      (all ends weren't equal to this start which means he hit a GAP)                    
+                    if gap_flag == True and first_overlap_flag == True:         
+                        for dur in list_of_durations:
+                            number_of_periods = number_of_periods + dur
+                        list_of_periods.append(number_of_periods)
+                        list_of_durations.clear()   # empty the list since we hit a gap
+                        interval_overlap_counter = 0   # reset overlap counter
+                    
+                    # GAP BEFORE OVERLAPS:        (Gap hit but no overlaps yet in this day{outlier case of initial seperated lectures})
+                    if gap_flag == True and first_overlap_flag == False:  
+                        duration_current = start_duration_dictionary[s]
+                        number_of_periods = duration_current
+                        list_of_periods.append(number_of_periods)
+                         
+                # Case: NO GAP (if all periods were back-to-back with no gaps OR the last few courses were back-to-back)
+                for dur in list_of_durations:
+                    number_of_periods = number_of_periods + dur
+                list_of_periods.append(number_of_periods)
+
+                #print(list_of_periods)
+                for periods in list_of_periods:
+                    # penalize if number of backToBack periods is too high
+                    delta = self.model.NewIntVar(-self.n_periods,
+                                                 self.n_periods, '') 
+                    # delta is positive when number_of_periods_in_a_row is > soft_max 
+                    self.model.Add(delta == periods - soft_max)
+                    excess = self.model.NewIntVar(
+                        0, self.n_periods, prefix + '_over_sum')
+                    self.model.AddMaxEquality(excess, [delta, 0])
+                    self.obj_int_vars.append(excess)
+                    self.obj_int_coeffs.append(cost)               
+
     def _set_obj(self):
         """ Set objective of the model to minimize the sum of cost vars multiplied by
             cost coefficients.
@@ -833,24 +927,26 @@ def main():
     sched.add_sync_across_curricula_constraints()
     sched.add_lecture_symmetry_constraints()
 
-    sched.add_unavailability_constraints(
-        "hFUhTu8WIEeQEQ3i", 2, [(0, 4), (6, 9)])
-    sched.add_unavailability_constraints("hFUhTu8WIEeQEQ3i", 4, [(4, 9)])
-    sched.add_unavailability_constraints(
-        "jWtVT6TsTjz0lFQb", 3, [(10, 14), (16, 19)])
+    #sched.add_unavailability_constraints(
+    #    "hFUhTu8WIEeQEQ3i", 2, [(0, 4), (6, 9)])
+    #sched.add_unavailability_constraints("hFUhTu8WIEeQEQ3i", 4, [(4, 9)])
+    #sched.add_unavailability_constraints(
+    #    "jWtVT6TsTjz0lFQb", 3, [(10, 14), (16, 19)])
 
     # penalize classes that start earlier than 10:30 (4) or later than 17:00 (17)
     # penalize early classes twice as much as late ones
     #sched.add_soft_start_time_constraints(4, 17, 2, 1)
-    sched.add_soft_three_row_constraints(0,2)
+    #sched.add_soft_three_row_constraints(0,2)
+    sched.add_soft_periods_in_a_row_constraints(8,1)
 
     n_solutions = 100
-
+    
     solution_printer = SchedPartialSolutionPrinter(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
                                                    sched.n_periods,
                                                    n_solutions)
+
     sched.solve(solution_printer, obj_proximity_delta=10)
     sched.print_statistics(solution_printer)
 
