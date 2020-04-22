@@ -125,9 +125,13 @@ class Scheduler(Resource):
                 L_intervals.append((start, end))
         
             sched.add_unavailability_constraints(course_id, day, L_intervals)
+        
+        # add some soft constraints
+        sched.add_soft_total_time_constraints(4, 14, 1, 1)
 
         for course_lock in course_locks:
             sched.add_course_lock(course_lock['course_id'], course_lock['locks'])
+
 
         # instantiate sched with class CourseSched 
         solution_printer = SchedPartialSolutionSerializer(sched.model_vars,
