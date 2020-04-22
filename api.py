@@ -129,9 +129,12 @@ class Scheduler(Resource):
         for course_lock in course_locks:
             sched.add_course_lock(course_lock['course_id'], course_lock['locks'])
 
+        # some soft constraints....
+        sched.add_soft_start_time_constraints(4, 17, 2, 1)
+        sched.add_soft_total_time_constraints(4, 14, 1, 1)
+
+
         # instantiate sched with class CourseSched 
-
-
         solution_printer = SchedPartialSolutionSerializer(sched.model_vars,
                                                    sched.curricula,
                                                    sched.n_days,
